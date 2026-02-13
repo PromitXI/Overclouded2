@@ -477,17 +477,133 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         return (
           <div className="animate-in fade-in slide-in-from-left duration-500">
             <button onClick={() => setActiveTab('HOME')} className="flex items-center text-slate-400 hover:text-slate-900 mb-6 transition-colors"><ChevronLeft className="w-4 h-4 mr-1" /> Back to Home</button>
-            <h2 className="text-3xl font-bold mb-8">Contact Us</h2>
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 text-center relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-slate-900 to-slate-800"></div>
-              <div className="relative -mt-4 mb-4"><div className="w-24 h-24 bg-white p-1 rounded-full mx-auto shadow-lg"><img src="https://ui-avatars.com/api/?name=Promit+Bhattacherjee&background=0F172A&color=fff&size=128" alt="Promit" className="w-full h-full rounded-full object-cover" /></div></div>
-              <h3 className="text-2xl font-bold text-slate-900">Promit Bhattacherjee</h3>
-              <p className="text-slate-500 mb-8">Lead Architect</p>
-              <div className="space-y-4 text-left max-w-xs mx-auto">
-                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"><div className="bg-white p-2 rounded-full shadow-sm"><Phone className="w-5 h-5 text-slate-900" /></div><span className="font-medium text-slate-700">9742757917</span></div>
-                <a href="mailto:promit.xi@gmail.com" className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"><div className="bg-white p-2 rounded-full shadow-sm"><Mail className="w-5 h-5 text-slate-900" /></div><span className="font-medium text-slate-700">promit.xi@gmail.com</span></a>
-                <a href="https://x.com" target="_blank" rel="noreferrer" className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"><div className="bg-white p-2 rounded-full shadow-sm flex items-center justify-center"><svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-900" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg></div><span className="font-medium text-slate-700">@promit_xi</span></a>
+
+            {/* ── The Card ── */}
+            <div className="flex items-center justify-center">
+              <div
+                className="relative w-full max-w-[540px] group cursor-default"
+                style={{ perspective: '1200px' }}
+              >
+                {/* Card container with subtle 3D tilt on hover */}
+                <div
+                  className="relative rounded-sm overflow-hidden transition-all duration-700 ease-out group-hover:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.25)]"
+                  style={{
+                    background: 'linear-gradient(165deg, #FAF9F6 0%, #F5F0EB 40%, #EDE8E1 100%)',
+                    aspectRatio: '1.75 / 1',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 28px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6)',
+                  }}
+                >
+                  {/* Subtle paper texture overlay */}
+                  <div className="absolute inset-0 opacity-[0.03]" style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                  }}></div>
+
+                  {/* Embossed edge line — top */}
+                  <div className="absolute top-[18px] left-[24px] right-[24px] h-[0.5px]" style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(180,160,140,0.15) 20%, rgba(180,160,140,0.15) 80%, transparent 100%)',
+                  }}></div>
+
+                  {/* Embossed edge line — bottom */}
+                  <div className="absolute bottom-[18px] left-[24px] right-[24px] h-[0.5px]" style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(180,160,140,0.15) 20%, rgba(180,160,140,0.15) 80%, transparent 100%)',
+                  }}></div>
+
+                  {/* Card content */}
+                  <div className="relative h-full flex flex-col justify-between p-8 md:p-10">
+
+                    {/* Top section — Company */}
+                    <div className="text-center">
+                      <div className="mb-1">
+                        <span
+                          className="text-[10px] md:text-[11px] tracking-[0.45em] uppercase"
+                          style={{ color: '#6B6259', fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                        >
+                          Over Clouded
+                        </span>
+                        <span className="align-super text-[6px] ml-0.5" style={{ color: '#9B9286' }}>TM</span>
+                      </div>
+                      <div className="w-8 h-[0.5px] mx-auto mt-1" style={{ background: 'rgba(160,145,130,0.3)' }}></div>
+                    </div>
+
+                    {/* Center — Name & Title */}
+                    <div className="text-center -mt-2">
+                      <h2
+                        className="text-xl md:text-2xl tracking-[0.15em] uppercase mb-2"
+                        style={{
+                          color: '#2C2824',
+                          fontFamily: "'Georgia', 'Times New Roman', serif",
+                          fontWeight: 400,
+                          textShadow: '0 0.5px 0 rgba(255,255,255,0.8)',
+                        }}
+                      >
+                        Promit Bhattacherjee
+                      </h2>
+                      <p
+                        className="text-[10px] md:text-[11px] tracking-[0.35em] uppercase"
+                        style={{ color: '#8C8279', fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                      >
+                        Lead Architect
+                      </p>
+                    </div>
+
+                    {/* Bottom — Contact Details */}
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-8">
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3 h-3" style={{ color: '#A09182' }} />
+                        <span
+                          className="text-[10px] md:text-[11px] tracking-[0.2em]"
+                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                        >
+                          974 275 7917
+                        </span>
+                      </div>
+                      <div className="hidden md:block w-[3px] h-[3px] rounded-full" style={{ background: '#C4BAB0' }}></div>
+                      <a href="mailto:promit.xi@gmail.com" className="flex items-center gap-2 hover:opacity-70 transition-opacity">
+                        <Mail className="w-3 h-3" style={{ color: '#A09182' }} />
+                        <span
+                          className="text-[10px] md:text-[11px] tracking-[0.12em]"
+                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                        >
+                          promit.xi@gmail.com
+                        </span>
+                      </a>
+                      <div className="hidden md:block w-[3px] h-[3px] rounded-full" style={{ background: '#C4BAB0' }}></div>
+                      <a href="https://x.com/promit_xi" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:opacity-70 transition-opacity">
+                        <svg viewBox="0 0 24 24" className="w-3 h-3" style={{ color: '#A09182' }} fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
+                        <span
+                          className="text-[10px] md:text-[11px] tracking-[0.12em]"
+                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                        >
+                          @promit_xi
+                        </span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Subtle shimmer effect on hover */}
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 60%)',
+                    }}
+                  ></div>
+                </div>
+
+                {/* Card shadow / surface underneath */}
+                <div className="absolute -bottom-1 left-2 right-2 h-2 rounded-b-sm" style={{
+                  background: 'linear-gradient(to bottom, rgba(0,0,0,0.04), transparent)',
+                }}></div>
               </div>
+            </div>
+
+            {/* Subtle caption */}
+            <div className="text-center mt-10">
+              <p className="text-[11px] tracking-[0.3em] uppercase" style={{ color: '#B0A89E', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+                Look at that subtle off-white coloring. The tasteful thickness of it.
+              </p>
+              <p className="text-[10px] tracking-[0.2em] mt-1" style={{ color: '#CCC5BD', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+                Oh my God. It even has a watermark.
+              </p>
             </div>
           </div>
         );
