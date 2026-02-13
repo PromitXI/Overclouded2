@@ -1,0 +1,5 @@
+{
+  "name": "Over Clouded",
+  "description": "An AI-powered Azure subscription analyzer that generates comprehensive security, monitoring, and recommendation dashboards.",
+  "requestFramePermissions": []
+}
