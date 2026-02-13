@@ -18,8 +18,10 @@ import threading
 import re
 import sys
 import os
+import platform
 
 PORT = 5000
+IS_WINDOWS = platform.system() == "Windows"
 
 
 class AzureAuthState:
@@ -90,7 +92,7 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                shell=True,
+                shell=IS_WINDOWS,
                 bufsize=1,
             )
             AzureAuthState.login_process = process
@@ -168,7 +170,7 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
                 ["az", "account", "get-access-token",
                  "--resource", "https://management.azure.com",
                  "-o", "json"],
-                capture_output=True, text=True, shell=True, timeout=30,
+                capture_output=True, text=True, shell=IS_WINDOWS, timeout=30,
             )
 
             if result.returncode == 0:
@@ -193,7 +195,7 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
                 ["az", "account", "list",
                  "--query", "[?state=='Enabled'].{subscriptionId:id, displayName:name, state:state}",
                  "-o", "json"],
-                capture_output=True, text=True, shell=True, timeout=30,
+                capture_output=True, text=True, shell=IS_WINDOWS, timeout=30,
             )
 
             if result.returncode == 0:

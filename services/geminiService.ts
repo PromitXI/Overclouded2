@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { DashboardData } from "../types";
 
 export const generateFallbackData = async (subscriptionId: string): Promise<DashboardData> => {
-  if (!process.env.API_KEY) {
+  if (!process.env.API_KEY || process.env.API_KEY === '__GEMINI_PLACEHOLDER__') {
     console.warn("No API Key found. Using static fallback data.");
     return getStaticFallback(subscriptionId);
   }
