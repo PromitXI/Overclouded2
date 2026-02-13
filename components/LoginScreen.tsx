@@ -599,10 +599,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             {/* Subtle caption */}
             <div className="text-center mt-10">
               <p className="text-[11px] tracking-[0.3em] uppercase" style={{ color: '#B0A89E', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-                Look at that subtle off-white coloring. The tasteful thickness of it.
+                "Vision without work is fantasy. Work without vision is labor.
               </p>
-              <p className="text-[10px] tracking-[0.2em] mt-1" style={{ color: '#CCC5BD', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-                Oh my God. It even has a watermark.
+              <p className="text-[11px] tracking-[0.3em] uppercase" style={{ color: '#B0A89E', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+                Combine both — and you build empires."
+              </p>
+              <p className="text-[10px] tracking-[0.2em] mt-2" style={{ color: '#CCC5BD', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+                — Promit
               </p>
             </div>
           </div>
