@@ -258,8 +258,8 @@ const SecurityDashboard: React.FC<{ data: SecurityData }> = ({ data }) => {
 │         ▼                      ▲                                        │
 │  ┌──────────────┐              │  HTTPS (TLS 1.2+)                      │
 │  │ Azure OAuth  │              │  Read-Only GET Requests                 │
-│  │ Device Code  │              │                                         │
-│  │ Flow         │              │  NO data sent to Overclouded servers    │
+│  │ Auth Code +  │              │                                         │
+│  │ PKCE (MSAL)  │              │  NO data sent to Overclouded servers    │
 │  └──────┬───────┘              │                                         │
 └─────────┼──────────────────────┼─────────────────────────────────────────┘
           │                      │
@@ -268,8 +268,8 @@ const SecurityDashboard: React.FC<{ data: SecurityData }> = ({ data }) => {
 │  Microsoft Entra │   │         Azure Resource Manager API               │
 │  ID (Azure AD)   │   │         https://management.azure.com             │
 │                  │   │                                                    │
-│  • Device Code   │   │  ┌─────────┐ ┌────────┐ ┌──────────┐ ┌────────┐ │
-│    Authentication│   │  │Security │ │ Cost   │ │Governance│ │  IAM   │ │
+│  • Auth Code +   │   │  ┌─────────┐ ┌────────┐ ┌──────────┐ ┌────────┐ │
+│    PKCE (MSAL)   │   │  │Security │ │ Cost   │ │Governance│ │  IAM   │ │
 │  • OAuth 2.0     │   │  │ Center  │ │Mgmt    │ │ Policy   │ │  RBAC  │ │
 │  • Token issued  │   │  └─────────┘ └────────┘ └──────────┘ └────────┘ │
 │    to browser    │   │  ┌─────────┐ ┌────────┐ ┌──────────┐ ┌────────┐ │
@@ -308,7 +308,7 @@ const SecurityDashboard: React.FC<{ data: SecurityData }> = ({ data }) => {
                            <div className="w-2 h-2 rounded-full bg-green-500"></div> Authentication Layer
                        </h5>
                        <ul className="text-xs text-slate-600 space-y-2">
-                           <li><strong>Azure Device Code Flow (OAuth 2.0)</strong> — Industry-standard authentication. User signs in directly with Microsoft.</li>
+                           <li><strong>Authorization Code Flow with PKCE (OAuth 2.0)</strong> — Industry-standard authentication via MSAL. User signs in directly with Microsoft.</li>
                            <li><strong>Token stays in browser</strong> — The Azure access token is held in JavaScript memory only. Never transmitted to any Overclouded server.</li>
                            <li><strong>Read-only scope</strong> — All API calls use the default Reader scope. Overclouded cannot create, modify, or delete any Azure resource.</li>
                            <li><strong>Token expiry</strong> — Azure tokens auto-expire after ~60-90 minutes. No refresh token is stored.</li>
@@ -360,7 +360,7 @@ const SecurityDashboard: React.FC<{ data: SecurityData }> = ({ data }) => {
                    <div className="space-y-0">
                        {[
                            { step: '1', title: 'User Opens Overclouded', desc: 'Static HTML/JS/CSS loaded. No data exists yet. No cookies set.', color: 'bg-blue-500' },
-                           { step: '2', title: 'User Initiates Login', desc: 'Azure Device Code flow starts. User authenticates directly with Microsoft — Overclouded never touches credentials.', color: 'bg-blue-500' },
+                           { step: '2', title: 'User Initiates Login', desc: 'MSAL starts the authorization code + PKCE flow. User authenticates directly with Microsoft — Overclouded never touches credentials.', color: 'bg-blue-500' },
                            { step: '3', title: 'Token Received in Browser', desc: 'Azure OAuth token stored in JavaScript variable (volatile memory). Never written to localStorage, sessionStorage, cookies, or IndexedDB.', color: 'bg-blue-500' },
                            { step: '4', title: 'Data Fetched from Azure APIs', desc: 'Browser makes direct HTTPS GET requests to management.azure.com. Responses are parsed into React state objects in memory.', color: 'bg-green-500' },
                            { step: '5', title: 'Dashboard Rendered', desc: 'Data displayed as charts, tables, KPIs. All rendering is client-side. Data exists only in React component state (JavaScript heap).', color: 'bg-green-500' },
@@ -432,7 +432,7 @@ const SecurityDashboard: React.FC<{ data: SecurityData }> = ({ data }) => {
                        {
                            title: 'Authentication Security',
                            items: [
-                               'OAuth 2.0 Device Code Flow (RFC 8628)',
+                               'OAuth 2.0 Authorization Code Flow with PKCE (RFC 7636)',
                                'Authentication delegated to Microsoft Entra ID',
                                'No passwords handled by Overclouded',
                                'Token scoped to management.azure.com (Reader)',
@@ -497,7 +497,7 @@ const SecurityDashboard: React.FC<{ data: SecurityData }> = ({ data }) => {
                            <tbody className="text-slate-600">
                                {[
                                    ['Data Breach / Exfiltration', 'None', 'No data stored anywhere. Nothing to breach.'],
-                                   ['Credential Theft', 'Mitigated', 'OAuth device code flow — credentials never touch Overclouded. MFA supported.'],
+                                   ['Credential Theft', 'Mitigated', 'OAuth authorization code + PKCE — credentials never touch Overclouded. MFA supported.'],
                                    ['Man-in-the-Middle (MITM)', 'Mitigated', 'All traffic over TLS 1.2+. HSTS enforced. Certificate pinning via cloud provider.'],
                                    ['Cross-Site Scripting (XSS)', 'Mitigated', 'React auto-escapes output. No dangerouslySetInnerHTML. CSP headers.'],
                                    ['Token Hijacking', 'Low', 'Token in memory only (not localStorage). Auto-expires. Read-only scope.'],
@@ -558,7 +558,7 @@ const SecurityDashboard: React.FC<{ data: SecurityData }> = ({ data }) => {
                    <h5 className="font-bold text-sm mb-2">Summary Statement for Audit Records</h5>
                    <p className="text-xs text-slate-300 leading-relaxed italic">
                        "Overclouded is a stateless, read-only, client-side cloud intelligence dashboard. It authenticates users via Microsoft Entra ID 
-                       (OAuth 2.0 Device Code Flow), fetches Azure subscription telemetry directly into the browser's volatile memory via the Azure Resource 
+                       (OAuth 2.0 authorization code flow with PKCE), fetches Azure subscription telemetry directly into the browser's volatile memory via the Azure Resource 
                        Manager REST API, and renders the data as interactive visualizations. No customer data is stored, persisted, cached, logged, or 
                        transmitted to any Overclouded-controlled infrastructure at any point during or after the session. All data is irrecoverably 
                        destroyed when the browser tab is closed or the user signs out. The platform source code is publicly auditable on GitHub."

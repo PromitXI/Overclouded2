@@ -1,103 +1,76 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { ArrowRight, X, Loader2, Terminal, AlertCircle, ShieldCheck, Mail, Phone, Lock, ChevronLeft, ChevronDown, Check, Copy, ExternalLink, Server, Trash2, Eye, Database, Key, Shield, CheckCircle, FileText, Workflow, DollarSign, Lightbulb, Users, Activity } from 'lucide-react';
-import { startDeviceCodeLogin, waitForLoginAndGetData, endAuthSession, AzureSubscription } from '../services/authService';
+import React, { useState, useCallback } from 'react';
+import { ArrowRight, X, Loader2, Terminal, AlertCircle, ShieldCheck, Mail, Phone, Lock, ChevronLeft, ChevronDown, Check, ExternalLink, Server, Trash2, Eye, Database, Key, Shield, CheckCircle, FileText, Workflow, DollarSign, Lightbulb, Users, Activity } from 'lucide-react';
+import { signIn, signOut, getArmToken, fetchSubscriptions, isAuthConfigured, AzureSubscription, SignedInUser } from '../services/authService';
 
 interface LoginScreenProps {
   onLogin: (subId: string, token?: string) => void;
 }
 
 type TabState = 'HOME' | 'DOCS' | 'SECURITY' | 'CONTACT';
-type AuthStep = 'IDLE' | 'DEVICE_CODE' | 'POLLING' | 'AUTHENTICATED';
+type AuthStep = 'IDLE' | 'SIGNING_IN' | 'AUTHENTICATED';
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [activeTab, setActiveTab] = useState<TabState>('HOME');
   const [showInput, setShowInput] = useState(false);
   const [mode, setMode] = useState<'DEMO' | 'REAL'>('REAL');
   const [isLoading, setIsLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Device code flow state
   const [authStep, setAuthStep] = useState<AuthStep>('IDLE');
-  const [userCode, setUserCode] = useState('');
-  const [verificationUri, setVerificationUri] = useState('');
-  const [pollingStatus, setPollingStatus] = useState('');
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Post-auth state
-  const [accessToken, setAccessToken] = useState('');
+  const [user, setUser] = useState<SignedInUser | null>(null);
   const [subscriptions, setSubscriptions] = useState<AzureSubscription[]>([]);
   const [selectedSubId, setSelectedSubId] = useState('');
 
   const resetAuth = useCallback(() => {
-    void endAuthSession();
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
+    void signOut();
     setAuthStep('IDLE');
-    setUserCode('');
-    setVerificationUri('');
-    setPollingStatus('');
-    setAccessToken('');
+    setUser(null);
     setSubscriptions([]);
     setSelectedSubId('');
     setAuthError(null);
   }, []);
 
-  const handleStartDeviceCode = async () => {
+  /**
+   * Sign in, then immediately list subscriptions — the token is only held for
+   * the duration of these two calls and is re-acquired when the scan starts.
+   */
+  const handleSignIn = async () => {
     setIsLoading(true);
     setAuthError(null);
+    setAuthStep('SIGNING_IN');
     try {
-      const result = await startDeviceCodeLogin();
-      setUserCode(result.user_code);
-      setVerificationUri(result.verification_uri);
-      setAuthStep('DEVICE_CODE');
+      const signedIn = await signIn();
+      setUser(signedIn);
+
+      const token = await getArmToken();
+      const subs = await fetchSubscriptions(token);
+      setSubscriptions(subs);
+      if (subs.length > 0) setSelectedSubId(subs[0].subscriptionId);
+      setAuthStep('AUTHENTICATED');
     } catch (err: any) {
-      setAuthError(err.message || 'Could not start device login. Is Azure CLI installed?');
+      setAuthError(err?.message || 'Sign-in failed.');
+      setAuthStep('IDLE');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOpenBrowserAndPoll = async () => {
-    // Open the Microsoft device login page
-    window.open(verificationUri, '_blank', 'noopener,noreferrer');
-
-    // Start polling
-    setAuthStep('POLLING');
-    setPollingStatus('Waiting for you to complete sign-in...');
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
+  const handleStartAnalysis = async () => {
+    if (!selectedSubId) return;
+    setIsLoading(true);
+    setAuthError(null);
     try {
-      const { token, subscriptions: subs } = await waitForLoginAndGetData(
-        (status) => setPollingStatus(status),
-        controller.signal
-      );
-
-      setAccessToken(token.access_token);
-      setSubscriptions(subs);
-      if (subs.length > 0) {
-        setSelectedSubId(subs[0].subscriptionId);
-      }
-      setAuthStep('AUTHENTICATED');
+      // Acquire a fresh token so a long-running modal cannot hand the
+      // dashboard something that has already expired.
+      const token = await getArmToken();
+      onLogin(selectedSubId, token);
     } catch (err: any) {
-      if (!controller.signal.aborted) {
-        setAuthError(err.message || 'Authentication failed. Please try again.');
-      }
-      setAuthStep('IDLE');
+      setAuthError(err?.message || 'Could not get an access token.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleStartAnalysis = () => {
-    if (!selectedSubId || !accessToken) return;
-    setIsLoading(true);
-    setTimeout(() => {
-      void endAuthSession();
-      onLogin(selectedSubId, accessToken);
-      setIsLoading(false);
-    }, 500);
-  };
 
   const handleDemoLogin = () => {
     setIsLoading(true);
@@ -105,12 +78,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       onLogin('demo-subscription-id');
       setIsLoading(false);
     }, 1000);
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   // ── Content sections ──
@@ -132,30 +99,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   <Terminal className="w-5 h-5 text-blue-600" />
                   Step 1: Click "Analyse Environment"
                 </h3>
-                <p className="text-slate-500 text-sm mb-3">Click the button and select "Live Connection". The app will run <code className="bg-slate-100 px-1 rounded font-mono">az login --use-device-code</code> and generate a unique sign-in code.</p>
+                <p className="text-slate-500 text-sm mb-3">Choose "Live Connection", then "Sign in with Microsoft". A Microsoft sign-in window opens — nothing is typed into Overclouded itself.</p>
               </section>
               <section>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">Step 2: Open Browser & Enter Code</h3>
-                <p className="text-slate-500 text-sm mb-3">Click "Open Browser & Sign In". A tab opens to <strong>microsoft.com/devicelogin</strong>. Enter the code and sign in with your Azure credentials.</p>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">Step 2: Approve the read-only access</h3>
+                <p className="text-slate-500 text-sm mb-3">Sign in as you normally would, including MFA. The consent screen shows Overclouded requesting delegated read access to Azure Resource Manager. On first use in a tenant, a Global Administrator may need to grant consent once.</p>
               </section>
               <section>
                 <h3 className="text-lg font-bold text-slate-800 mb-2">Step 3: Select a Subscription</h3>
-                <p className="text-slate-500 text-sm mb-3">After authentication, the app detects your subscriptions. Select one and click "Start Analysis".</p>
+                <p className="text-slate-500 text-sm mb-3">Overclouded lists the subscriptions your account can read. Pick one and click "Start Analysis".</p>
               </section>
               <section className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
                 <h3 className="text-lg font-bold text-blue-800 mb-2 flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Prerequisites</h3>
                 <ul className="list-disc pl-5 space-y-2 text-sm text-blue-700">
-                  <li><strong>Azure CLI</strong> must be installed on the machine running this app.</li>
-                  <li>Your account needs at least <strong>"Reader"</strong> role on the target subscription.</li>
-                  <li>No app registration or client ID configuration needed.</li>
+                  <li>Your account needs at least the <strong>Reader</strong> role on the target subscription.</li>
+                  <li>Popups must be allowed for this site — sign-in happens in a popup window.</li>
+                  <li><strong>No Azure CLI, no agent, and nothing to install.</strong> Authentication runs entirely in the browser.</li>
                 </ul>
               </section>
               <section className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
                 <h3 className="text-lg font-bold text-orange-800 mb-2 flex items-center gap-2"><AlertCircle className="w-5 h-5" /> Troubleshooting</h3>
                 <ul className="list-disc pl-5 space-y-2 text-sm text-orange-700">
-                  <li><strong>Code Expired?</strong> Codes are valid for ~15 minutes. Click "Try Again" to regenerate.</li>
-                  <li><strong>"az not found"?</strong> Install Azure CLI from <code className="bg-orange-100 px-1 rounded font-mono">https://aka.ms/installazurecli</code>.</li>
-                  <li><strong>Popup Blocked?</strong> Allow popups for this site.</li>
+                  <li><strong>Popup blocked?</strong> Allow popups for this site and click sign in again.</li>
+                  <li><strong>"Needs admin approval"?</strong> Your tenant requires a Global Administrator to consent to the app once, after which everyone can sign in.</li>
+                  <li><strong>No subscriptions listed?</strong> The account signed in successfully but holds no role on any subscription. Ask for Reader access.</li>
+                  <li><strong>Signed out after refreshing?</strong> Expected — tokens live in memory only and are deliberately not persisted.</li>
                 </ul>
               </section>
             </div>
@@ -228,7 +196,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 │        ▼                       ▲                                     │
 │  ┌──────────────┐              │  HTTPS (TLS 1.2+)                   │
 │  │ Azure OAuth  │              │  Read-Only GET Requests              │
-│  │ Device Code  │              │                                      │
+│  │ Auth Code +  │              │                                      │
 │  │ Flow         │              │  Azure data stays in browser memory  │
 │  └──────┬───────┘              │                                      │
 └─────────┼──────────────────────┼──────────────────────────────────────┘
@@ -238,7 +206,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 │  Microsoft Entra │   │       Azure Resource Manager API               │
 │  ID (Azure AD)   │   │       https://management.azure.com             │
 │                  │   │                                                  │
-│  • Device Code   │   │  Security ∙ Cost ∙ Governance ∙ IAM ∙ Monitor  │
+│  • Auth Code +   │   │  Security ∙ Cost ∙ Governance ∙ IAM ∙ Monitor  │
 │    Authentication│   │  Advisor  ∙ Activity Logs ∙ Resource Health     │
 │  • OAuth 2.0     │   │  Deployments ∙ Quotas ∙ Compliance             │
 │  • Token issued  │   │                                                  │
@@ -254,19 +222,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               {/* ── Authentication Security ── */}
               <div className="p-6 bg-white border border-slate-100 rounded-2xl shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2"><Key className="w-5 h-5 text-amber-600" /> Authentication Security</h3>
-                <p className="text-xs text-slate-400 mb-4">OAuth 2.0 Device Code Flow — industry-standard, zero credential exposure.</p>
+                <p className="text-xs text-slate-400 mb-4">OAuth 2.0 authorization code flow with PKCE — industry-standard, zero credential exposure.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ul className="text-xs text-slate-600 space-y-2.5">
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span><strong>OAuth 2.0 Device Code Flow (RFC 8628)</strong> — same as <code className="bg-slate-100 px-1 rounded font-mono text-[10px]">az login --use-device-code</code></span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span><strong>Authorization code flow with PKCE (RFC 7636)</strong> via the Microsoft Authentication Library (MSAL)</span></li>
                     <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Authentication delegated <strong>entirely to Microsoft Entra ID</strong> — Overclouded never handles usernames or passwords</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Azure access token stored <strong>only in JavaScript variable</strong> (volatile memory), never persisted</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Token scoped to <strong>Reader</strong> role — cannot create, modify, or delete any Azure resource</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>MSAL configured with <code className="bg-slate-100 px-1 rounded font-mono text-[10px]">cacheLocation: memoryStorage</code> — tokens are <strong>never</strong> written to localStorage or sessionStorage</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Token requested with the delegated <strong>user_impersonation</strong> scope and constrained by the signed-in user's own Azure RBAC</span></li>
                   </ul>
                   <ul className="text-xs text-slate-600 space-y-2.5">
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Token <strong>auto-expires</strong> after ~60-90 minutes. No refresh token stored.</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span><strong>Multi-Factor Authentication (MFA)</strong> fully supported</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>No app registration required — uses Azure CLI public client ID</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>No client secrets, no certificates, no service principals</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>The token <strong>never reaches an Overclouded server</strong> — the browser calls Azure directly</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Token <strong>auto-expires</strong> after ~60–90 minutes, and a page reload requires signing in again</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span><strong>Multi-Factor Authentication</strong> and Conditional Access policies are fully honoured</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Public client — <strong>no client secrets</strong>, no certificates, no service principals</span></li>
                   </ul>
                 </div>
               </div>
@@ -315,7 +283,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 <div className="space-y-0">
                   {[
                     { step: '1', title: 'User Opens Overclouded', desc: 'Static HTML/JS/CSS loaded. No data exists yet. No cookies set.', color: 'bg-blue-500' },
-                    { step: '2', title: 'User Initiates Login', desc: 'Azure Device Code flow starts. User authenticates directly with Microsoft.', color: 'bg-blue-500' },
+                    { step: '2', title: 'User Initiates Login', desc: 'MSAL starts the authorization code + PKCE flow. User authenticates directly with Microsoft.', color: 'bg-blue-500' },
                     { step: '3', title: 'Token Received in Browser', desc: 'Azure OAuth token stored in JavaScript variable only. Never written to any browser storage.', color: 'bg-blue-500' },
                     { step: '4', title: 'Data Fetched from Azure APIs', desc: 'Browser makes direct HTTPS GET requests to management.azure.com. Responses parsed into React state.', color: 'bg-green-500' },
                     { step: '5', title: 'Dashboard Rendered', desc: 'Data displayed as charts, tables, KPIs — all client-side. Data exists only in React useState().', color: 'bg-green-500' },
@@ -395,7 +363,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     <tbody className="text-slate-600">
                       {[
                         ['Data Breach / Exfiltration', 'None', 'No data stored anywhere. Nothing to breach.'],
-                        ['Credential Theft', 'Mitigated', 'OAuth device code flow — credentials never touch Overclouded.'],
+                        ['Credential Theft', 'Mitigated', 'OAuth authorization code + PKCE — credentials never touch Overclouded.'],
                         ['Man-in-the-Middle', 'Mitigated', 'All traffic over TLS 1.2+. HSTS enforced.'],
                         ['Cross-Site Scripting (XSS)', 'Mitigated', 'React auto-escapes. No dangerouslySetInnerHTML. CSP headers.'],
                         ['Token Hijacking', 'Low', 'Token in memory only. Auto-expires. Read-only scope.'],
@@ -641,7 +609,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { icon: Lock, title: 'Your sign-in, not ours', body: 'Authentication runs through Microsoft Entra ID device code flow. Credentials are entered on Microsoft’s page and never reach this application.' },
+              { icon: Lock, title: 'Your sign-in, not ours', body: 'Authentication runs through Microsoft Entra ID using OAuth 2.0 with PKCE. Credentials are entered on Microsoft’s page and never reach this application.' },
               { icon: Eye, title: 'Read-only by construction', body: 'Every Azure call is a GET against management.azure.com under your own permissions. Overclouded cannot create, modify or delete a resource.' },
               { icon: Trash2, title: 'Zero retention', body: 'Results live in browser memory for the session and are destroyed when the tab closes. No database, no cookies, no local storage.' },
             ].map(({ icon: Icon, title, body }) => (
@@ -679,97 +647,131 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     </div>
   );
 
-  // ── Device Code Flow UI ──
+  // ── Sign-in UI ──
 
-  const renderDeviceCodeFlow = () => {
-    if (authStep === 'IDLE') {
+  const renderSignIn = () => {
+    if (!isAuthConfigured()) {
       return (
-        <>
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5 text-green-500" />
-              <div>
-                <strong>Secure Device Code Login</strong>
-                <p className="mt-1 text-slate-500">Uses <code className="bg-slate-100 px-1 rounded font-mono text-xs">az login --use-device-code</code> under the hood. You sign in on Microsoft's website — no credentials enter this app.</p>
-              </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
+            <div>
+              <strong className="block mb-1">Microsoft sign-in is not configured</strong>
+              <p className="text-amber-700">
+                Set <code className="bg-amber-100 px-1 rounded font-mono text-xs">VITE_AZURE_CLIENT_ID</code> to
+                your Entra app registration client ID and restart the dev server. The README covers the
+                one-time setup. Demo Data works without it.
+              </p>
             </div>
           </div>
-          <button onClick={handleStartDeviceCode} disabled={isLoading} className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
-            {isLoading ? <Loader2 className="animate-spin" /> : (
-              <>
-                <svg viewBox="0 0 23 23" className="w-5 h-5" fill="none"><path d="M1 1h10v10H1z" fill="#f25022" /><path d="M12 1h10v10H12z" fill="#7fba00" /><path d="M1 12h10v10H1z" fill="#00a4ef" /><path d="M12 12h10v10H12z" fill="#ffb900" /></svg>
-                Generate Device Code
-              </>
-            )}
-          </button>
-        </>
-      );
-    }
-
-    if (authStep === 'DEVICE_CODE') {
-      return (
-        <>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
-            <p className="text-sm text-blue-700 mb-3 font-medium">Your Device Code</p>
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <span className="text-3xl md:text-4xl font-mono font-black tracking-[0.3em] text-slate-900 select-all">{userCode}</span>
-              <button onClick={() => copyToClipboard(userCode)} className="p-2 hover:bg-blue-100 rounded-lg transition-colors" title="Copy code">
-                {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-blue-400" />}
-              </button>
-            </div>
-            <p className="text-xs text-blue-500">Go to <strong>{verificationUri}</strong> and enter this code to sign in.</p>
-          </div>
-          <button onClick={handleOpenBrowserAndPoll} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
-            <ExternalLink className="w-5 h-5" /> Open Browser & Sign In
-          </button>
-          <button onClick={resetAuth} className="w-full text-slate-400 hover:text-slate-600 text-sm font-medium py-2 transition-colors">Cancel</button>
-        </>
-      );
-    }
-
-    if (authStep === 'POLLING') {
-      return (
-        <>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-            <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-3" />
-            <p className="text-sm font-semibold text-amber-800 mb-1">Waiting for Authentication</p>
-            <p className="text-xs text-amber-600">{pollingStatus}</p>
-            {userCode && <p className="text-xs text-amber-500 mt-3">Code: <span className="font-mono font-bold">{userCode}</span></p>}
-          </div>
-          <button onClick={resetAuth} className="w-full text-slate-400 hover:text-slate-600 text-sm font-medium py-2 transition-colors">Cancel Authentication</button>
-        </>
+        </div>
       );
     }
 
     if (authStep === 'AUTHENTICATED') {
       return (
         <>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700">
-            <div className="flex items-center gap-3"><Check className="w-5 h-5 flex-shrink-0 text-green-500" /><strong>Authentication Successful</strong></div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
+            <div className="flex items-center gap-3">
+              <Check className="w-5 h-5 flex-shrink-0 text-green-600" />
+              <div className="min-w-0">
+                <strong className="block">Signed in</strong>
+                <span className="text-green-700 truncate block">{user?.username}</span>
+              </div>
+            </div>
           </div>
+
           {subscriptions.length > 0 ? (
             <>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Select Subscription</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Select Subscription
+                </label>
                 <div className="relative">
-                  <select value={selectedSubId} onChange={(e) => setSelectedSubId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all appearance-none pr-10">
-                    {subscriptions.map((sub) => (<option key={sub.subscriptionId} value={sub.subscriptionId}>{sub.displayName} ({sub.subscriptionId.slice(0, 8)}...)</option>))}
+                  <select
+                    value={selectedSubId}
+                    onChange={(e) => setSelectedSubId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all appearance-none pr-10"
+                  >
+                    {subscriptions.map((sub) => (
+                      <option key={sub.subscriptionId} value={sub.subscriptionId}>
+                        {sub.displayName} ({sub.subscriptionId.slice(0, 8)}…)
+                      </option>
+                    ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                 </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  {subscriptions.length} subscription{subscriptions.length === 1 ? '' : 's'} readable by this account.
+                </p>
               </div>
-              <button onClick={handleStartAnalysis} disabled={isLoading || !selectedSubId} className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2">
+              <button
+                onClick={handleStartAnalysis}
+                disabled={isLoading || !selectedSubId}
+                className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+              >
                 {isLoading ? <Loader2 className="animate-spin" /> : 'Start Analysis'}
               </button>
             </>
           ) : (
-            <div className="text-center py-6 text-slate-500 text-sm"><AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />No subscriptions found.</div>
+            <div className="text-center py-6 text-slate-500 text-sm">
+              <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+              <p className="font-medium text-slate-600 mb-1">No subscriptions found</p>
+              <p className="text-xs max-w-xs mx-auto">
+                This account can sign in but has no enabled subscription assigned. Ask an administrator for
+                at least the Reader role on the subscription you want to analyse.
+              </p>
+            </div>
           )}
-          <button onClick={resetAuth} className="w-full text-slate-400 hover:text-slate-600 text-sm font-medium py-2 transition-colors">Sign in with a different account</button>
+
+          <button
+            onClick={resetAuth}
+            className="w-full text-slate-400 hover:text-slate-600 text-sm font-medium py-2 transition-colors"
+          >
+            Use a different account
+          </button>
         </>
       );
     }
-    return null;
+
+    return (
+      <>
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5 text-green-500" />
+            <div>
+              <strong>Sign in with Microsoft</strong>
+              <p className="mt-1 text-slate-500">
+                Opens Microsoft&apos;s own sign-in window. Overclouded requests read-only access to Azure
+                Resource Manager, and the access token stays in this browser tab — it is never sent to our
+                servers or written to disk.
+              </p>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={handleSignIn}
+          disabled={isLoading}
+          className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="animate-spin" /> Waiting for sign-in…
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 23 23" className="w-5 h-5" fill="none">
+                <path d="M1 1h10v10H1z" fill="#f25022" />
+                <path d="M12 1h10v10H12z" fill="#7fba00" />
+                <path d="M1 12h10v10H1z" fill="#00a4ef" />
+                <path d="M12 12h10v10H12z" fill="#ffb900" />
+              </svg>
+              Sign in with Microsoft
+            </>
+          )}
+        </button>
+      </>
+    );
   };
 
   return (
@@ -822,7 +824,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               </div>
             )}
             {mode === 'REAL' ? (
-              <div className="space-y-5">{renderDeviceCodeFlow()}</div>
+              <div className="space-y-5">{renderSignIn()}</div>
             ) : (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6"><Terminal className="w-8 h-8 text-slate-400" /></div>
