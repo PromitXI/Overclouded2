@@ -17,7 +17,8 @@ import time
 
 # ── Configuration ──
 FRONTEND_PORT = 3000
-BACKEND_PORT = 5000
+# Keep in step with backend_server.py — 5000 is taken by AirPlay on macOS.
+BACKEND_PORT = int(os.environ.get("OVERCLOUDED_BACKEND_PORT", "5057"))
 URL = f"http://localhost:{FRONTEND_PORT}"
 
 # Colors

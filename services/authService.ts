@@ -40,10 +40,25 @@ export interface AzureSubscription {
  * Returns the device code and verification URL.
  */
 export const startDeviceCodeLogin = async (): Promise<DeviceCodeResponse> => {
-  const response = await fetch("/api/start-login", { method: "POST" });
+  let response: Response;
+  try {
+    response = await fetch("/api/start-login", { method: "POST" });
+  } catch {
+    // The proxy could not reach the Python backend at all.
+    throw new Error(
+      "Cannot reach the authentication backend. Start it with `python3 start_server.py`, " +
+      "which runs the Azure CLI helper alongside the frontend."
+    );
+  }
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
+    if (!data.error && (response.status === 404 || response.status === 502 || response.status === 403)) {
+      throw new Error(
+        `The authentication backend is not responding (HTTP ${response.status}). ` +
+        "Start it with `python3 start_server.py`, and check nothing else is using its port."
+      );
+    }
     throw new Error(data.error || "Failed to start device code login.");
   }
 

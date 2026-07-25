@@ -22,4 +22,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/1vgaZne7rnszGhZtSVRnyt2
    `python3 start_server.py`
 
 Running only `npm run dev` starts the frontend; live authentication and AI demo
-generation require `backend_server.py` on port 5000.
+generation require `backend_server.py`, which listens on port 5057.
+
+Port 5057 rather than the more usual 5000 because macOS 12+ binds 5000 to the
+AirPlay Receiver, which answers every request with 403 and breaks the login
+proxy. Override it on both processes with `OVERCLOUDED_BACKEND_PORT`.

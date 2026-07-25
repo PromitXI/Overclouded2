@@ -25,7 +25,10 @@ import shutil
 import urllib.request
 import urllib.error
 
-PORT = 5000
+# macOS 12+ binds port 5000 to the AirPlay Receiver (Control Center), which
+# answers 403 to everything and silently breaks the device-code flow. Default
+# off 5000 and allow an override.
+PORT = int(os.environ.get("OVERCLOUDED_BACKEND_PORT", "5057"))
 IS_WINDOWS = platform.system() == "Windows"
 
 
@@ -299,7 +302,13 @@ Use realistic but explicitly simulated values and arrays. Do not include markdow
 
 
 def start_server():
-    server = http.server.HTTPServer(("127.0.0.1", PORT), AzureAuthHandler)
+    try:
+        server = http.server.HTTPServer(("127.0.0.1", PORT), AzureAuthHandler)
+    except OSError as exc:
+        print(f"  [error] Could not bind port {PORT}: {exc}")
+        print(f"  Another process is using it. Free the port, or pick a different one:")
+        print(f"      OVERCLOUDED_BACKEND_PORT=5058 python3 start_server.py")
+        sys.exit(1)
     print(f"  Azure CLI backend running on http://127.0.0.1:{PORT}")
     server.serve_forever()
 

@@ -14,7 +14,10 @@ import os
 import mimetypes
 
 PORT = int(os.environ.get("PORT", 8080))
-BACKEND_URL = "http://127.0.0.1:5000"
+# Must match backend_server.py, which defaults off 5000 because macOS binds
+# that port to the AirPlay Receiver.
+BACKEND_PORT = int(os.environ.get("OVERCLOUDED_BACKEND_PORT", "5057"))
+BACKEND_URL = f"http://127.0.0.1:{BACKEND_PORT}"
 DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist")
 
 

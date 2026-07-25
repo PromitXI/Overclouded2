@@ -60,7 +60,9 @@ RUN printf '#!/bin/bash\n\
 set -e\n\
 \n\
 PORT="${PORT:-8080}"\n\
-BACKEND_PORT=5000\n\
+# Shared by backend_server.py and cloud_run_server.py so both agree.\n\
+export OVERCLOUDED_BACKEND_PORT="${OVERCLOUDED_BACKEND_PORT:-5057}"\n\
+BACKEND_PORT="$OVERCLOUDED_BACKEND_PORT"\n\
 \n\
 echo ""\n\
 echo "  Overclouded — Starting Container"\n\
