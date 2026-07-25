@@ -58,6 +58,17 @@ const IAMDashboard: React.FC<{ data: IAMExtendedData }> = ({ data }) => {
       <ExpandableSection title="Role Assignments" icon={<Shield className="w-5 h-5" />} badge={totalAssignments} defaultOpen={true}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
+            {totalAssignments === 0 ? (
+              <div className="h-[250px] flex flex-col items-center justify-center text-center px-6">
+                <Shield className="w-10 h-10 text-slate-300 mb-3" />
+                <p className="text-sm font-semibold text-slate-600">No role assignments returned</p>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                  Reading role assignments needs the Microsoft.Authorization/roleAssignments/read
+                  permission on this subscription. Ask an Owner to grant Reader or
+                  User Access Administrator, then run the analysis again.
+                </p>
+              </div>
+            ) : (
             <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-white">
@@ -87,17 +98,22 @@ const IAMDashboard: React.FC<{ data: IAMExtendedData }> = ({ data }) => {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
           <div className="h-[250px]">
             <h4 className="text-sm font-bold text-slate-700 mb-2 text-center">By Principal Type</h4>
+            {principalTypeData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-xs text-slate-400">No data to chart</div>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={principalTypeData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value">
+                <Pie data={principalTypeData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value" isAnimationActive={false}>
                   {principalTypeData.map((_, idx) => (<Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />
               </PieChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
       </ExpandableSection>

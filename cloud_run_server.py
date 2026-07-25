@@ -14,7 +14,10 @@ import os
 import mimetypes
 
 PORT = int(os.environ.get("PORT", 8080))
-BACKEND_URL = "http://127.0.0.1:5000"
+# Must match backend_server.py, which defaults off 5000 because macOS binds
+# that port to the AirPlay Receiver.
+BACKEND_PORT = int(os.environ.get("OVERCLOUDED_BACKEND_PORT", "5057"))
+BACKEND_URL = f"http://127.0.0.1:{BACKEND_PORT}"
 DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist")
 
 
@@ -66,6 +69,9 @@ class CloudRunHandler(http.server.BaseHTTPRequestHandler):
 
             req = urllib.request.Request(target_url, data=body, method=method)
             req.add_header("Content-Type", self.headers.get("Content-Type", "application/json"))
+            auth_session = self.headers.get("X-Auth-Session")
+            if auth_session:
+                req.add_header("X-Auth-Session", auth_session)
 
             with urllib.request.urlopen(req, timeout=120) as resp:
                 response_data = resp.read()

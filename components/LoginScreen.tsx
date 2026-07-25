@@ -1,101 +1,76 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { ArrowRight, X, Loader2, Terminal, AlertCircle, ShieldCheck, Mail, Phone, Lock, ChevronLeft, ChevronDown, Check, Copy, ExternalLink, Server, Trash2, Eye, Database, Key, Shield, CheckCircle, FileText, Workflow } from 'lucide-react';
-import { startDeviceCodeLogin, waitForLoginAndGetData, AzureSubscription } from '../services/authService';
+import React, { useState, useCallback } from 'react';
+import { ArrowRight, X, Loader2, Terminal, AlertCircle, ShieldCheck, Mail, Phone, Lock, ChevronLeft, ChevronDown, Check, ExternalLink, Server, Trash2, Eye, Database, Key, Shield, CheckCircle, FileText, Workflow, DollarSign, Lightbulb, Users, Activity } from 'lucide-react';
+import { signIn, signOut, getArmToken, fetchSubscriptions, isAuthConfigured, AzureSubscription, SignedInUser } from '../services/authService';
 
 interface LoginScreenProps {
   onLogin: (subId: string, token?: string) => void;
 }
 
-type TabState = 'HOME' | 'DOCS' | 'SECURITY' | 'ENTERPRISE' | 'CONTACT';
-type AuthStep = 'IDLE' | 'DEVICE_CODE' | 'POLLING' | 'AUTHENTICATED';
+type TabState = 'HOME' | 'DOCS' | 'SECURITY' | 'CONTACT';
+type AuthStep = 'IDLE' | 'SIGNING_IN' | 'AUTHENTICATED';
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [activeTab, setActiveTab] = useState<TabState>('HOME');
   const [showInput, setShowInput] = useState(false);
   const [mode, setMode] = useState<'DEMO' | 'REAL'>('REAL');
   const [isLoading, setIsLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Device code flow state
   const [authStep, setAuthStep] = useState<AuthStep>('IDLE');
-  const [userCode, setUserCode] = useState('');
-  const [verificationUri, setVerificationUri] = useState('');
-  const [pollingStatus, setPollingStatus] = useState('');
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Post-auth state
-  const [accessToken, setAccessToken] = useState('');
+  const [user, setUser] = useState<SignedInUser | null>(null);
   const [subscriptions, setSubscriptions] = useState<AzureSubscription[]>([]);
   const [selectedSubId, setSelectedSubId] = useState('');
 
   const resetAuth = useCallback(() => {
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
+    void signOut();
     setAuthStep('IDLE');
-    setUserCode('');
-    setVerificationUri('');
-    setPollingStatus('');
-    setAccessToken('');
+    setUser(null);
     setSubscriptions([]);
     setSelectedSubId('');
     setAuthError(null);
   }, []);
 
-  const handleStartDeviceCode = async () => {
+  /**
+   * Sign in, then immediately list subscriptions — the token is only held for
+   * the duration of these two calls and is re-acquired when the scan starts.
+   */
+  const handleSignIn = async () => {
     setIsLoading(true);
     setAuthError(null);
+    setAuthStep('SIGNING_IN');
     try {
-      const result = await startDeviceCodeLogin();
-      setUserCode(result.user_code);
-      setVerificationUri(result.verification_uri);
-      setAuthStep('DEVICE_CODE');
+      const signedIn = await signIn();
+      setUser(signedIn);
+
+      const token = await getArmToken();
+      const subs = await fetchSubscriptions(token);
+      setSubscriptions(subs);
+      if (subs.length > 0) setSelectedSubId(subs[0].subscriptionId);
+      setAuthStep('AUTHENTICATED');
     } catch (err: any) {
-      setAuthError(err.message || 'Could not start device login. Is Azure CLI installed?');
+      setAuthError(err?.message || 'Sign-in failed.');
+      setAuthStep('IDLE');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOpenBrowserAndPoll = async () => {
-    // Open the Microsoft device login page
-    window.open(verificationUri, '_blank', 'noopener,noreferrer');
-
-    // Start polling
-    setAuthStep('POLLING');
-    setPollingStatus('Waiting for you to complete sign-in...');
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
+  const handleStartAnalysis = async () => {
+    if (!selectedSubId) return;
+    setIsLoading(true);
+    setAuthError(null);
     try {
-      const { token, subscriptions: subs } = await waitForLoginAndGetData(
-        (status) => setPollingStatus(status),
-        controller.signal
-      );
-
-      setAccessToken(token.access_token);
-      setSubscriptions(subs);
-      if (subs.length > 0) {
-        setSelectedSubId(subs[0].subscriptionId);
-      }
-      setAuthStep('AUTHENTICATED');
+      // Acquire a fresh token so a long-running modal cannot hand the
+      // dashboard something that has already expired.
+      const token = await getArmToken();
+      onLogin(selectedSubId, token);
     } catch (err: any) {
-      if (!controller.signal.aborted) {
-        setAuthError(err.message || 'Authentication failed. Please try again.');
-      }
-      setAuthStep('IDLE');
+      setAuthError(err?.message || 'Could not get an access token.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleStartAnalysis = () => {
-    if (!selectedSubId || !accessToken) return;
-    setIsLoading(true);
-    setTimeout(() => {
-      onLogin(selectedSubId, accessToken);
-      setIsLoading(false);
-    }, 500);
-  };
 
   const handleDemoLogin = () => {
     setIsLoading(true);
@@ -105,13 +80,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }, 1000);
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   // ── Content sections ──
+
+  const isHome = activeTab === 'HOME';
 
   const renderContent = () => {
     switch (activeTab) {
@@ -122,36 +93,37 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               <ChevronLeft className="w-4 h-4 mr-1" /> Back to Home
             </button>
             <h2 className="text-3xl font-bold mb-6">Connection Documentation</h2>
-            <div className="space-y-8 overflow-y-auto max-h-[60vh] pr-4 custom-scrollbar">
+            <div className="space-y-8 max-w-3xl">
               <section>
                 <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
                   <Terminal className="w-5 h-5 text-blue-600" />
                   Step 1: Click "Analyse Environment"
                 </h3>
-                <p className="text-slate-500 text-sm mb-3">Click the button and select "Live Connection". The app will run <code className="bg-slate-100 px-1 rounded font-mono">az login --use-device-code</code> and generate a unique sign-in code.</p>
+                <p className="text-slate-500 text-sm mb-3">Choose "Live Connection", then "Sign in with Microsoft". A Microsoft sign-in window opens — nothing is typed into Overclouded itself.</p>
               </section>
               <section>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">Step 2: Open Browser & Enter Code</h3>
-                <p className="text-slate-500 text-sm mb-3">Click "Open Browser & Sign In". A tab opens to <strong>microsoft.com/devicelogin</strong>. Enter the code and sign in with your Azure credentials.</p>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">Step 2: Approve the read-only access</h3>
+                <p className="text-slate-500 text-sm mb-3">Sign in as you normally would, including MFA. The consent screen shows Overclouded requesting delegated read access to Azure Resource Manager. On first use in a tenant, a Global Administrator may need to grant consent once.</p>
               </section>
               <section>
                 <h3 className="text-lg font-bold text-slate-800 mb-2">Step 3: Select a Subscription</h3>
-                <p className="text-slate-500 text-sm mb-3">After authentication, the app detects your subscriptions. Select one and click "Start Analysis".</p>
+                <p className="text-slate-500 text-sm mb-3">Overclouded lists the subscriptions your account can read. Pick one and click "Start Analysis".</p>
               </section>
               <section className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
                 <h3 className="text-lg font-bold text-blue-800 mb-2 flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Prerequisites</h3>
                 <ul className="list-disc pl-5 space-y-2 text-sm text-blue-700">
-                  <li><strong>Azure CLI</strong> must be installed on the machine running this app.</li>
-                  <li>Your account needs at least <strong>"Reader"</strong> role on the target subscription.</li>
-                  <li>No app registration or client ID configuration needed.</li>
+                  <li>Your account needs at least the <strong>Reader</strong> role on the target subscription.</li>
+                  <li>Popups must be allowed for this site — sign-in happens in a popup window.</li>
+                  <li><strong>No Azure CLI, no agent, and nothing to install.</strong> Authentication runs entirely in the browser.</li>
                 </ul>
               </section>
               <section className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
                 <h3 className="text-lg font-bold text-orange-800 mb-2 flex items-center gap-2"><AlertCircle className="w-5 h-5" /> Troubleshooting</h3>
                 <ul className="list-disc pl-5 space-y-2 text-sm text-orange-700">
-                  <li><strong>Code Expired?</strong> Codes are valid for ~15 minutes. Click "Try Again" to regenerate.</li>
-                  <li><strong>"az not found"?</strong> Install Azure CLI from <code className="bg-orange-100 px-1 rounded font-mono">https://aka.ms/installazurecli</code>.</li>
-                  <li><strong>Popup Blocked?</strong> Allow popups for this site.</li>
+                  <li><strong>Popup blocked?</strong> Allow popups for this site and click sign in again.</li>
+                  <li><strong>"Needs admin approval"?</strong> Your tenant requires a Global Administrator to consent to the app once, after which everyone can sign in.</li>
+                  <li><strong>No subscriptions listed?</strong> The account signed in successfully but holds no role on any subscription. Ask for Reader access.</li>
+                  <li><strong>Signed out after refreshing?</strong> Expected — tokens live in memory only and are deliberately not persisted.</li>
                 </ul>
               </section>
             </div>
@@ -163,7 +135,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <button onClick={() => setActiveTab('HOME')} className="flex items-center text-slate-400 hover:text-slate-900 mb-6 transition-colors"><ChevronLeft className="w-4 h-4 mr-1" /> Back to Home</button>
             <h2 className="text-3xl font-bold mb-2">Security Architecture</h2>
             <p className="text-slate-400 text-sm mb-6">Comprehensive audit report — zero data retention, full transparency.</p>
-            <div className="space-y-6 overflow-y-auto max-h-[60vh] pr-4 custom-scrollbar">
+            <div className="space-y-6">
 
               {/* ── Zero Data Storage Guarantee ── */}
               <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl">
@@ -224,8 +196,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 │        ▼                       ▲                                     │
 │  ┌──────────────┐              │  HTTPS (TLS 1.2+)                   │
 │  │ Azure OAuth  │              │  Read-Only GET Requests              │
-│  │ Device Code  │              │                                      │
-│  │ Flow         │              │  NO data sent to Overclouded servers │
+│  │ Auth Code +  │              │                                      │
+│  │ Flow         │              │  Azure data stays in browser memory  │
 │  └──────┬───────┘              │                                      │
 └─────────┼──────────────────────┼──────────────────────────────────────┘
           │                      │
@@ -234,7 +206,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 │  Microsoft Entra │   │       Azure Resource Manager API               │
 │  ID (Azure AD)   │   │       https://management.azure.com             │
 │                  │   │                                                  │
-│  • Device Code   │   │  Security ∙ Cost ∙ Governance ∙ IAM ∙ Monitor  │
+│  • Auth Code +   │   │  Security ∙ Cost ∙ Governance ∙ IAM ∙ Monitor  │
 │    Authentication│   │  Advisor  ∙ Activity Logs ∙ Resource Health     │
 │  • OAuth 2.0     │   │  Deployments ∙ Quotas ∙ Compliance             │
 │  • Token issued  │   │                                                  │
@@ -242,7 +214,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 └──────────────────┘   └────────────────────────────────────────────────┘
 
   DATA FLOW:  Azure API ──▶ Browser Memory ──▶ Dashboard UI ──▶ Gone on logoff
-  STORAGE:    ❌ No database  ❌ No cookies  ❌ No localStorage  ❌ No server logs
+  STORAGE:    ❌ No database  ❌ No cookies  ❌ No localStorage
 `}</pre>
                 </div>
               </div>
@@ -250,19 +222,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               {/* ── Authentication Security ── */}
               <div className="p-6 bg-white border border-slate-100 rounded-2xl shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2"><Key className="w-5 h-5 text-amber-600" /> Authentication Security</h3>
-                <p className="text-xs text-slate-400 mb-4">OAuth 2.0 Device Code Flow — industry-standard, zero credential exposure.</p>
+                <p className="text-xs text-slate-400 mb-4">OAuth 2.0 authorization code flow with PKCE — industry-standard, zero credential exposure.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ul className="text-xs text-slate-600 space-y-2.5">
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span><strong>OAuth 2.0 Device Code Flow (RFC 8628)</strong> — same as <code className="bg-slate-100 px-1 rounded font-mono text-[10px]">az login --use-device-code</code></span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span><strong>Authorization code flow with PKCE (RFC 7636)</strong> via the Microsoft Authentication Library (MSAL)</span></li>
                     <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Authentication delegated <strong>entirely to Microsoft Entra ID</strong> — Overclouded never handles usernames or passwords</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Azure access token stored <strong>only in JavaScript variable</strong> (volatile memory), never persisted</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Token scoped to <strong>Reader</strong> role — cannot create, modify, or delete any Azure resource</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>MSAL configured with <code className="bg-slate-100 px-1 rounded font-mono text-[10px]">cacheLocation: memoryStorage</code> — tokens are <strong>never</strong> written to localStorage or sessionStorage</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Token requested with the delegated <strong>user_impersonation</strong> scope and constrained by the signed-in user's own Azure RBAC</span></li>
                   </ul>
                   <ul className="text-xs text-slate-600 space-y-2.5">
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Token <strong>auto-expires</strong> after ~60-90 minutes. No refresh token stored.</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span><strong>Multi-Factor Authentication (MFA)</strong> fully supported</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>No app registration required — uses Azure CLI public client ID</span></li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>No client secrets, no certificates, no service principals</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>The token <strong>never reaches an Overclouded server</strong> — the browser calls Azure directly</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Token <strong>auto-expires</strong> after ~60–90 minutes, and a page reload requires signing in again</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span><strong>Multi-Factor Authentication</strong> and Conditional Access policies are fully honoured</span></li>
+                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-600 mt-0.5 flex-shrink-0" /><span>Public client — <strong>no client secrets</strong>, no certificates, no service principals</span></li>
                   </ul>
                 </div>
               </div>
@@ -311,13 +283,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 <div className="space-y-0">
                   {[
                     { step: '1', title: 'User Opens Overclouded', desc: 'Static HTML/JS/CSS loaded. No data exists yet. No cookies set.', color: 'bg-blue-500' },
-                    { step: '2', title: 'User Initiates Login', desc: 'Azure Device Code flow starts. User authenticates directly with Microsoft.', color: 'bg-blue-500' },
+                    { step: '2', title: 'User Initiates Login', desc: 'MSAL starts the authorization code + PKCE flow. User authenticates directly with Microsoft.', color: 'bg-blue-500' },
                     { step: '3', title: 'Token Received in Browser', desc: 'Azure OAuth token stored in JavaScript variable only. Never written to any browser storage.', color: 'bg-blue-500' },
                     { step: '4', title: 'Data Fetched from Azure APIs', desc: 'Browser makes direct HTTPS GET requests to management.azure.com. Responses parsed into React state.', color: 'bg-green-500' },
                     { step: '5', title: 'Dashboard Rendered', desc: 'Data displayed as charts, tables, KPIs — all client-side. Data exists only in React useState().', color: 'bg-green-500' },
                     { step: '6', title: 'PDF Generated (Optional)', desc: 'jsPDF creates reports in-browser. Downloaded directly. No server upload.', color: 'bg-green-500' },
                     { step: '7', title: 'User Signs Out / Closes Tab', desc: 'window.location.reload() clears all React state. Browser GC reclaims all memory. Token invalidated.', color: 'bg-red-500' },
-                    { step: '8', title: 'Post-Session State', desc: 'ZERO data remains anywhere — no server, no client storage, no logs, no cache. As if the session never happened.', color: 'bg-red-500' },
+                    { step: '8', title: 'Post-Session State', desc: 'Dashboard data is not persisted. The isolated Azure CLI token cache is temporary and removed with the server session or instance.', color: 'bg-red-500' },
                   ].map((item, idx) => (
                     <div key={idx} className="flex gap-3">
                       <div className="flex flex-col items-center">
@@ -391,7 +363,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     <tbody className="text-slate-600">
                       {[
                         ['Data Breach / Exfiltration', 'None', 'No data stored anywhere. Nothing to breach.'],
-                        ['Credential Theft', 'Mitigated', 'OAuth device code flow — credentials never touch Overclouded.'],
+                        ['Credential Theft', 'Mitigated', 'OAuth authorization code + PKCE — credentials never touch Overclouded.'],
                         ['Man-in-the-Middle', 'Mitigated', 'All traffic over TLS 1.2+. HSTS enforced.'],
                         ['Cross-Site Scripting (XSS)', 'Mitigated', 'React auto-escapes. No dangerouslySetInnerHTML. CSP headers.'],
                         ['Token Hijacking', 'Low', 'Token in memory only. Auto-expires. Read-only scope.'],
@@ -433,7 +405,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 <div className="space-y-2">
                   {[
                     'Open DevTools → Application → Storage: Confirm localStorage, sessionStorage, cookies, and IndexedDB are all empty.',
-                    'Open DevTools → Network tab: All XHR/fetch calls go only to management.azure.com. No calls to Overclouded servers for data.',
+                    'Open DevTools → Network tab: Azure assessment data is fetched from management.azure.com; /api calls are limited to authentication and optional demo generation.',
                     'Inspect source code (GitHub): Search for localStorage, sessionStorage, document.cookie, indexedDB — none are used.',
                     'Verify all Azure API calls are HTTP GET (read-only). No POST/PUT/DELETE/PATCH calls.',
                     'Sign out and reopen: No previous session data, dashboards, or tokens are recoverable.',
@@ -454,11 +426,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               <div className="p-6 bg-slate-900 rounded-2xl">
                 <h3 className="text-lg font-bold text-white mb-3">Audit Summary Statement</h3>
                 <p className="text-xs text-slate-300 leading-relaxed italic">
-                  "Overclouded is a stateless, read-only, client-side cloud intelligence dashboard. It authenticates users via Microsoft Entra ID 
-                  (OAuth 2.0 Device Code Flow), fetches Azure subscription telemetry directly into the browser's volatile memory via the Azure Resource 
-                  Manager REST API, and renders the data as interactive visualizations. No customer data is stored, persisted, cached, logged, or 
-                  transmitted to any Overclouded-controlled infrastructure at any point during or after the session. All data is irrecoverably 
-                  destroyed when the browser tab is closed or the user signs out. The platform source code is publicly auditable on GitHub."
+                  "Overclouded is a read-only cloud intelligence dashboard. It uses an isolated Azure CLI device-code session for authentication,
+                  fetches subscription telemetry from Azure Resource Manager into browser memory, and does not persist assessment data in a database
+                  or browser storage. Authentication token caches are isolated per server session and temporary. The platform source code is publicly auditable on GitHub."
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500">
                   <span>Report Version: 1.0</span>
@@ -477,267 +447,362 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         return (
           <div className="animate-in fade-in slide-in-from-left duration-500">
             <button onClick={() => setActiveTab('HOME')} className="flex items-center text-slate-400 hover:text-slate-900 mb-6 transition-colors"><ChevronLeft className="w-4 h-4 mr-1" /> Back to Home</button>
+            <h2 className="text-3xl font-bold mb-2">Talk to us</h2>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              Book a walkthrough against your own subscription, or ask us anything about how the
+              analysis works. We usually reply the same working day.
+            </p>
 
-            {/* ── The Card ── */}
-            <div className="flex items-center justify-center">
-              <div
-                className="relative w-full max-w-[540px] group cursor-default"
-                style={{ perspective: '1200px' }}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mb-8">
+              <a
+                href="mailto:promit.xi@gmail.com?subject=Overclouded%20—%20request%20a%20demo"
+                className="group flex items-center gap-4 p-5 rounded-2xl border border-slate-200 hover:border-slate-900 transition-colors"
               >
-                {/* Card container with subtle 3D tilt on hover */}
-                <div
-                  className="relative rounded-sm overflow-hidden transition-all duration-700 ease-out group-hover:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.25)]"
-                  style={{
-                    background: 'linear-gradient(165deg, #FAF9F6 0%, #F5F0EB 40%, #EDE8E1 100%)',
-                    aspectRatio: '1.75 / 1',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 28px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6)',
-                  }}
-                >
-                  {/* Subtle paper texture overlay */}
-                  <div className="absolute inset-0 opacity-[0.03]" style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                  }}></div>
-
-                  {/* Embossed edge line — top */}
-                  <div className="absolute top-[18px] left-[24px] right-[24px] h-[0.5px]" style={{
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(180,160,140,0.15) 20%, rgba(180,160,140,0.15) 80%, transparent 100%)',
-                  }}></div>
-
-                  {/* Embossed edge line — bottom */}
-                  <div className="absolute bottom-[18px] left-[24px] right-[24px] h-[0.5px]" style={{
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(180,160,140,0.15) 20%, rgba(180,160,140,0.15) 80%, transparent 100%)',
-                  }}></div>
-
-                  {/* Card content */}
-                  <div className="relative h-full flex flex-col justify-between p-8 md:p-10">
-
-                    {/* Top section — Company */}
-                    <div className="text-center">
-                      <div className="mb-1">
-                        <span
-                          className="text-[10px] md:text-[11px] tracking-[0.45em] uppercase"
-                          style={{ color: '#6B6259', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                        >
-                          Over Clouded
-                        </span>
-                        <span className="align-super text-[6px] ml-0.5" style={{ color: '#9B9286' }}>TM</span>
-                      </div>
-                      <div className="w-8 h-[0.5px] mx-auto mt-1" style={{ background: 'rgba(160,145,130,0.3)' }}></div>
-                    </div>
-
-                    {/* Center — Name & Title */}
-                    <div className="text-center -mt-2">
-                      <h2
-                        className="text-xl md:text-2xl tracking-[0.15em] uppercase mb-2"
-                        style={{
-                          color: '#2C2824',
-                          fontFamily: "'Georgia', 'Times New Roman', serif",
-                          fontWeight: 400,
-                          textShadow: '0 0.5px 0 rgba(255,255,255,0.8)',
-                        }}
-                      >
-                        Promit Bhattacherjee
-                      </h2>
-                      <p
-                        className="text-[10px] md:text-[11px] tracking-[0.35em] uppercase"
-                        style={{ color: '#8C8279', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                      >
-                        Lead Architect
-                      </p>
-                    </div>
-
-                    {/* Bottom — Contact Details */}
-                    <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-8">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-3 h-3" style={{ color: '#A09182' }} />
-                        <span
-                          className="text-[10px] md:text-[11px] tracking-[0.2em]"
-                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                        >
-                          974 275 7917
-                        </span>
-                      </div>
-                      <div className="hidden md:block w-[3px] h-[3px] rounded-full" style={{ background: '#C4BAB0' }}></div>
-                      <a href="mailto:promit.xi@gmail.com" className="flex items-center gap-2 hover:opacity-70 transition-opacity">
-                        <Mail className="w-3 h-3" style={{ color: '#A09182' }} />
-                        <span
-                          className="text-[10px] md:text-[11px] tracking-[0.12em]"
-                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                        >
-                          promit.xi@gmail.com
-                        </span>
-                      </a>
-                      <div className="hidden md:block w-[3px] h-[3px] rounded-full" style={{ background: '#C4BAB0' }}></div>
-                      <a href="https://x.com/promit_xi" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:opacity-70 transition-opacity">
-                        <svg viewBox="0 0 24 24" className="w-3 h-3" style={{ color: '#A09182' }} fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
-                        <span
-                          className="text-[10px] md:text-[11px] tracking-[0.12em]"
-                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                        >
-                          @promit_xi
-                        </span>
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Subtle shimmer effect on hover */}
-                  <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 pointer-events-none"
-                    style={{
-                      background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 60%)',
-                    }}
-                  ></div>
+                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center flex-shrink-0">
+                  <Mail className="w-4 h-4" />
                 </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900">Book a demo</div>
+                  <div className="text-sm text-slate-500 truncate">promit.xi@gmail.com</div>
+                </div>
+              </a>
 
-                {/* Card shadow / surface underneath */}
-                <div className="absolute -bottom-1 left-2 right-2 h-2 rounded-b-sm" style={{
-                  background: 'linear-gradient(to bottom, rgba(0,0,0,0.04), transparent)',
-                }}></div>
+              <a
+                href="tel:+9742757917"
+                className="group flex items-center gap-4 p-5 rounded-2xl border border-slate-200 hover:border-slate-900 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center flex-shrink-0">
+                  <Phone className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900">Sales &amp; support</div>
+                  <div className="text-sm text-slate-500">974 275 7917</div>
+                </div>
+              </a>
+            </div>
+
+            <div className="max-w-2xl p-6 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-slate-900 text-sm mb-1">Evaluating with your own data?</div>
+                  <p className="text-sm text-slate-500">
+                    You do not need to send us anything. Overclouded reads your subscription directly
+                    from your browser using your own Microsoft sign-in, and retains nothing after the
+                    session ends. See <button onClick={() => setActiveTab('SECURITY')} className="text-slate-900 font-medium underline underline-offset-2">Security</button> for the full audit trail.
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Subtle caption */}
-            <div className="text-center mt-10">
-              <p className="text-[11px] tracking-[0.3em] uppercase" style={{ color: '#B0A89E', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-                "Vision without work is fantasy. Work without vision is labor.
-              </p>
-              <p className="text-[11px] tracking-[0.3em] uppercase" style={{ color: '#B0A89E', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-                Combine both — and you build empires."
-              </p>
-              <p className="text-[10px] tracking-[0.2em] mt-2" style={{ color: '#CCC5BD', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-                — Promit
-              </p>
+            <div className="mt-8 pt-6 border-t border-slate-100 max-w-2xl flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-400">
+              <span>Promit Bhattacherjee &middot; Lead Architect</span>
+              <a href="https://x.com/promit_xi" target="_blank" rel="noreferrer" className="hover:text-slate-900 transition-colors">@promit_xi</a>
             </div>
           </div>
         );
-      case 'ENTERPRISE': return null;
       case 'HOME': default:
         return (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="max-w-xl mb-12 lg:mb-20">
-              <h1 className="text-4xl md:text-6xl font-medium leading-tight tracking-tight mb-8">Cloud Intelligence <br />that connects Ops <br />with Peace of Mind.</h1>
+            <div className="max-w-xl">
+              <h1 className="text-4xl md:text-5xl xl:text-6xl font-medium leading-tight tracking-tight mb-6">Cloud Intelligence <br />that connects Ops <br />with Peace of Mind.</h1>
+              <p className="text-lg text-slate-500 mb-8 max-w-md">
+                Point Overclouded at an Azure subscription and get a full read on cost, security,
+                governance and identity — plus a board-ready report — in about a minute.
+              </p>
               <button onClick={() => setShowInput(true)} className="group flex items-center gap-3 bg-slate-900 text-white px-8 py-4 rounded-full text-lg font-medium hover:bg-slate-800 transition-all hover:pr-10">
                 Analyse Environment <ArrowRight className="w-5 h-5 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
               </button>
+              <div className="flex items-center gap-2 mt-5 text-sm text-slate-400">
+                <ShieldCheck className="w-4 h-4 text-green-600 flex-shrink-0" />
+                <span>Read-only. You sign in on Microsoft&apos;s own page — no credentials, no agents, nothing stored.</span>
+              </div>
             </div>
-            <div className="hidden lg:block text-slate-400 text-sm">&copy; {new Date().getFullYear()} Over Clouded Inc. All rights reserved.</div>
           </div>
         );
     }
   };
 
-  // ── Device Code Flow UI ──
+  // ── Landing page content below the hero ──
 
-  const renderDeviceCodeFlow = () => {
-    if (authStep === 'IDLE') {
-      return (
-        <>
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5 text-green-500" />
-              <div>
-                <strong>Secure Device Code Login</strong>
-                <p className="mt-1 text-slate-500">Uses <code className="bg-slate-100 px-1 rounded font-mono text-xs">az login --use-device-code</code> under the hood. You sign in on Microsoft's website — no credentials enter this app.</p>
+  const CAPABILITIES = [
+    { icon: DollarSign, title: 'Cost Analysis', body: 'Month-to-date spend, month-end forecast against budget, and a breakdown by service, resource group and region.' },
+    { icon: Lightbulb, title: 'Savings Advisor', body: 'Rightsizing and reservation opportunities with the monthly dollar figure attached to each one.' },
+    { icon: Shield, title: 'Security Posture', body: 'Defender secure score, active threats, open NSG rules, encryption gaps and expiring Key Vault material.' },
+    { icon: FileText, title: 'Compliance Coverage', body: 'Control-level pass rates for CIS, ISO 27001, PCI DSS and NIST SP 800-53.' },
+    { icon: Users, title: 'Identity & Access', body: 'Every role assignment, who holds Owner, service principal credential expiry and accounts gone stale.' },
+    { icon: Activity, title: 'Operations & SLA', body: 'CPU, memory and IOPS trends, resource health, backup coverage and SLA attainment against contract.' },
+  ];
+
+  const renderMarketing = () => (
+    <div className="bg-white">
+      {/* What it does */}
+      <section className="px-6 md:px-12 lg:px-20 py-20 md:py-28 border-t border-slate-100">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-3xl mb-16">
+            <div className="text-xs font-bold tracking-[0.2em] uppercase text-slate-400 mb-4">What you get</div>
+            <h2 className="text-3xl md:text-4xl font-medium tracking-tight mb-5">
+              The answers your cloud bill and your auditor both want.
+            </h2>
+            <p className="text-lg text-slate-500">
+              Azure already holds this data — spread across Cost Management, Defender for Cloud,
+              Advisor, Policy and Entra ID. Overclouded reads all of it in one pass and returns a
+              single prioritised picture, ranked by severity and dollar impact.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-12">
+            {CAPABILITIES.map(({ icon: Icon, title, body }) => (
+              <div key={title}>
+                <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center mb-4">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">{body}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Report */}
+      <section className="px-6 md:px-12 lg:px-20 py-20 md:py-28 bg-slate-50 border-y border-slate-100">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+          <div>
+            <div className="text-xs font-bold tracking-[0.2em] uppercase text-slate-400 mb-4">The deliverable</div>
+            <h2 className="text-3xl md:text-4xl font-medium tracking-tight mb-5">
+              A report you can hand to the client.
+            </h2>
+            <p className="text-lg text-slate-500 mb-8">
+              One click exports a nine-page PDF: executive summary with posture scores and a spend
+              forecast against budget pace, then cost, savings, security, governance, operations,
+              identity, change history and the methodology behind every number.
+            </p>
+            <button onClick={() => setShowInput(true)} className="group flex items-center gap-3 bg-slate-900 text-white px-7 py-3.5 rounded-full font-medium hover:bg-slate-800 transition-all">
+              See it on your own data <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              ['9', 'pages, every one populated'],
+              ['30+', 'charts, tables and gauges'],
+              ['11', 'Azure APIs read per scan'],
+              ['0', 'bytes retained afterwards'],
+            ].map(([stat, label]) => (
+              <div key={label} className="bg-white rounded-2xl border border-slate-200 p-6">
+                <div className="text-3xl font-semibold text-slate-900 mb-1">{stat}</div>
+                <div className="text-sm text-slate-500 leading-snug">{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Trust */}
+      <section className="px-6 md:px-12 lg:px-20 py-20 md:py-28">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-3xl mb-14">
+            <div className="text-xs font-bold tracking-[0.2em] uppercase text-slate-400 mb-4">Why security teams allow it</div>
+            <h2 className="text-3xl md:text-4xl font-medium tracking-tight">
+              Nothing to install. Nothing to hand over.
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { icon: Lock, title: 'Your sign-in, not ours', body: 'Authentication runs through Microsoft Entra ID using OAuth 2.0 with PKCE. Credentials are entered on Microsoft’s page and never reach this application.' },
+              { icon: Eye, title: 'Read-only by construction', body: 'Every Azure call is a GET against management.azure.com under your own permissions. Overclouded cannot create, modify or delete a resource.' },
+              { icon: Trash2, title: 'Zero retention', body: 'Results live in browser memory for the session and are destroyed when the tab closes. No database, no cookies, no local storage.' },
+            ].map(({ icon: Icon, title, body }) => (
+              <div key={title} className="p-7 rounded-2xl border border-slate-200">
+                <Icon className="w-5 h-5 text-slate-900 mb-4" />
+                <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">{body}</p>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setActiveTab('SECURITY')} className="mt-8 text-sm font-medium text-slate-900 underline underline-offset-4 hover:text-slate-600 transition-colors">
+            Read the full security architecture
+          </button>
+        </div>
+      </section>
+
+      {/* Closing CTA */}
+      <section className="px-6 md:px-12 lg:px-20 py-20 md:py-28 bg-slate-900 text-white">
+        <div className="max-w-6xl mx-auto text-center">
+          <h2 className="text-3xl md:text-5xl font-medium tracking-tight mb-6">
+            Scan a subscription in about a minute.
+          </h2>
+          <p className="text-lg text-slate-400 mb-10 max-w-xl mx-auto">
+            Run it live against your own Azure environment, or explore the full dashboard with
+            demonstration data first.
+          </p>
+          <button onClick={() => setShowInput(true)} className="group inline-flex items-center gap-3 bg-white text-slate-900 px-8 py-4 rounded-full text-lg font-medium hover:bg-slate-100 transition-all">
+            Analyse Environment <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+          <div className="mt-14 pt-8 border-t border-white/10 text-sm text-slate-500">
+            &copy; {new Date().getFullYear()} Overclouded Inc. All rights reserved.
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+
+  // ── Sign-in UI ──
+
+  const renderSignIn = () => {
+    if (!isAuthConfigured()) {
+      return (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
+            <div>
+              <strong className="block mb-1">Microsoft sign-in is not configured</strong>
+              <p className="text-amber-700">
+                Set <code className="bg-amber-100 px-1 rounded font-mono text-xs">VITE_AZURE_CLIENT_ID</code> to
+                your Entra app registration client ID and restart the dev server. The README covers the
+                one-time setup. Demo Data works without it.
+              </p>
             </div>
           </div>
-          <button onClick={handleStartDeviceCode} disabled={isLoading} className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
-            {isLoading ? <Loader2 className="animate-spin" /> : (
-              <>
-                <svg viewBox="0 0 23 23" className="w-5 h-5" fill="none"><path d="M1 1h10v10H1z" fill="#f25022" /><path d="M12 1h10v10H12z" fill="#7fba00" /><path d="M1 12h10v10H1z" fill="#00a4ef" /><path d="M12 12h10v10H12z" fill="#ffb900" /></svg>
-                Generate Device Code
-              </>
-            )}
-          </button>
-        </>
-      );
-    }
-
-    if (authStep === 'DEVICE_CODE') {
-      return (
-        <>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
-            <p className="text-sm text-blue-700 mb-3 font-medium">Your Device Code</p>
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <span className="text-3xl md:text-4xl font-mono font-black tracking-[0.3em] text-slate-900 select-all">{userCode}</span>
-              <button onClick={() => copyToClipboard(userCode)} className="p-2 hover:bg-blue-100 rounded-lg transition-colors" title="Copy code">
-                {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-blue-400" />}
-              </button>
-            </div>
-            <p className="text-xs text-blue-500">Go to <strong>{verificationUri}</strong> and enter this code to sign in.</p>
-          </div>
-          <button onClick={handleOpenBrowserAndPoll} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
-            <ExternalLink className="w-5 h-5" /> Open Browser & Sign In
-          </button>
-          <button onClick={resetAuth} className="w-full text-slate-400 hover:text-slate-600 text-sm font-medium py-2 transition-colors">Cancel</button>
-        </>
-      );
-    }
-
-    if (authStep === 'POLLING') {
-      return (
-        <>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-            <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-3" />
-            <p className="text-sm font-semibold text-amber-800 mb-1">Waiting for Authentication</p>
-            <p className="text-xs text-amber-600">{pollingStatus}</p>
-            {userCode && <p className="text-xs text-amber-500 mt-3">Code: <span className="font-mono font-bold">{userCode}</span></p>}
-          </div>
-          <button onClick={resetAuth} className="w-full text-slate-400 hover:text-slate-600 text-sm font-medium py-2 transition-colors">Cancel Authentication</button>
-        </>
+        </div>
       );
     }
 
     if (authStep === 'AUTHENTICATED') {
       return (
         <>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700">
-            <div className="flex items-center gap-3"><Check className="w-5 h-5 flex-shrink-0 text-green-500" /><strong>Authentication Successful</strong></div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
+            <div className="flex items-center gap-3">
+              <Check className="w-5 h-5 flex-shrink-0 text-green-600" />
+              <div className="min-w-0">
+                <strong className="block">Signed in</strong>
+                <span className="text-green-700 truncate block">{user?.username}</span>
+              </div>
+            </div>
           </div>
+
           {subscriptions.length > 0 ? (
             <>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Select Subscription</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Select Subscription
+                </label>
                 <div className="relative">
-                  <select value={selectedSubId} onChange={(e) => setSelectedSubId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all appearance-none pr-10">
-                    {subscriptions.map((sub) => (<option key={sub.subscriptionId} value={sub.subscriptionId}>{sub.displayName} ({sub.subscriptionId.slice(0, 8)}...)</option>))}
+                  <select
+                    value={selectedSubId}
+                    onChange={(e) => setSelectedSubId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all appearance-none pr-10"
+                  >
+                    {subscriptions.map((sub) => (
+                      <option key={sub.subscriptionId} value={sub.subscriptionId}>
+                        {sub.displayName} ({sub.subscriptionId.slice(0, 8)}…)
+                      </option>
+                    ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                 </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  {subscriptions.length} subscription{subscriptions.length === 1 ? '' : 's'} readable by this account.
+                </p>
               </div>
-              <button onClick={handleStartAnalysis} disabled={isLoading || !selectedSubId} className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2">
+              <button
+                onClick={handleStartAnalysis}
+                disabled={isLoading || !selectedSubId}
+                className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+              >
                 {isLoading ? <Loader2 className="animate-spin" /> : 'Start Analysis'}
               </button>
             </>
           ) : (
-            <div className="text-center py-6 text-slate-500 text-sm"><AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />No subscriptions found.</div>
+            <div className="text-center py-6 text-slate-500 text-sm">
+              <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+              <p className="font-medium text-slate-600 mb-1">No subscriptions found</p>
+              <p className="text-xs max-w-xs mx-auto">
+                This account can sign in but has no enabled subscription assigned. Ask an administrator for
+                at least the Reader role on the subscription you want to analyse.
+              </p>
+            </div>
           )}
-          <button onClick={resetAuth} className="w-full text-slate-400 hover:text-slate-600 text-sm font-medium py-2 transition-colors">Sign in with a different account</button>
+
+          <button
+            onClick={resetAuth}
+            className="w-full text-slate-400 hover:text-slate-600 text-sm font-medium py-2 transition-colors"
+          >
+            Use a different account
+          </button>
         </>
       );
     }
-    return null;
+
+    return (
+      <>
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5 text-green-500" />
+            <div>
+              <strong>Sign in with Microsoft</strong>
+              <p className="mt-1 text-slate-500">
+                Opens Microsoft&apos;s own sign-in window. Overclouded requests read-only access to Azure
+                Resource Manager, and the access token stays in this browser tab — it is never sent to our
+                servers or written to disk.
+              </p>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={handleSignIn}
+          disabled={isLoading}
+          className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="animate-spin" /> Waiting for sign-in…
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 23 23" className="w-5 h-5" fill="none">
+                <path d="M1 1h10v10H1z" fill="#f25022" />
+                <path d="M12 1h10v10H12z" fill="#7fba00" />
+                <path d="M1 12h10v10H1z" fill="#00a4ef" />
+                <path d="M12 12h10v10H12z" fill="#ffb900" />
+              </svg>
+              Sign in with Microsoft
+            </>
+          )}
+        </button>
+      </>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-slate-900 selection:text-white overflow-hidden relative">
-      <header className="absolute top-0 left-0 w-full p-6 md:p-10 flex justify-between items-center z-20 mix-blend-difference text-white lg:text-slate-900 lg:mix-blend-normal">
-        <div className="text-3xl md:text-4xl font-extrabold tracking-tighter cursor-pointer" onClick={() => setActiveTab('HOME')}>Over Clouded<span className="align-top text-sm font-medium">TM</span></div>
+    <div className={`min-h-screen bg-white text-slate-900 font-sans selection:bg-slate-900 selection:text-white relative ${isHome ? 'overflow-hidden' : ''}`}>
+      <header className={`${isHome ? 'absolute' : 'sticky'} top-0 left-0 w-full p-6 md:p-10 flex justify-between items-center z-20 ${isHome ? 'mix-blend-difference text-white lg:text-slate-900 lg:mix-blend-normal' : 'bg-white/90 backdrop-blur-sm text-slate-900'}`}>
+        <div className="text-3xl md:text-4xl font-extrabold tracking-tighter cursor-pointer" onClick={() => setActiveTab('HOME')}>Overclouded<span className="align-top text-sm font-medium">TM</span></div>
         <nav className="hidden md:flex space-x-8 text-sm font-medium">
           <button onClick={() => setActiveTab('DOCS')} className={`hover:underline decoration-2 underline-offset-4 ${activeTab === 'DOCS' ? 'underline' : ''}`}>Documentation</button>
           <button onClick={() => setActiveTab('SECURITY')} className={`hover:underline decoration-2 underline-offset-4 ${activeTab === 'SECURITY' ? 'underline' : ''}`}>Security</button>
-          <button className="opacity-50 cursor-not-allowed" title="Enterprise features coming soon">Enterprise</button>
           <button onClick={() => setActiveTab('CONTACT')} className={`hover:underline decoration-2 underline-offset-4 ${activeTab === 'CONTACT' ? 'underline' : ''}`}>Contact</button>
         </nav>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 h-screen w-full">
-        <div className="relative flex flex-col justify-center lg:justify-end p-6 md:p-12 lg:p-20 order-2 lg:order-1 bg-white pt-24 lg:pt-0">{renderContent()}</div>
-        <div className="relative h-[40vh] lg:h-full order-1 lg:order-2 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2301&auto=format&fit=crop" alt="Minimalist Architecture" className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] hover:scale-105" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent lg:hidden"></div>
+      {isHome ? (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 min-h-screen w-full">
+            <div className="relative flex flex-col justify-center p-6 md:p-12 lg:px-20 lg:py-28 order-2 lg:order-1 bg-white pt-24">{renderContent()}</div>
+            <div className="relative h-[40vh] lg:h-full order-1 lg:order-2 bg-slate-100 overflow-hidden">
+              <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2301&auto=format&fit=crop" alt="Minimalist Architecture" className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent lg:hidden"></div>
+            </div>
+          </div>
+          {renderMarketing()}
+        </>
+      ) : (
+        // Content pages get the full viewport width and scroll with the document
+        // rather than being squeezed into a half-width column with its own scrollbar.
+        <div className="w-full px-6 md:px-12 lg:px-20 pb-20">
+          <div className="max-w-6xl mx-auto">{renderContent()}</div>
         </div>
-      </div>
+      )}
 
       {/* Login Modal */}
       {showInput && (
@@ -759,7 +824,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               </div>
             )}
             {mode === 'REAL' ? (
-              <div className="space-y-5">{renderDeviceCodeFlow()}</div>
+              <div className="space-y-5">{renderSignIn()}</div>
             ) : (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6"><Terminal className="w-8 h-8 text-slate-400" /></div>

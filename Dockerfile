@@ -27,9 +27,6 @@ COPY components/ ./components/
 COPY services/ ./services/
 COPY public/ ./public/
 
-# Build with empty GEMINI_API_KEY — real key injected at runtime
-ARG GEMINI_API_KEY=""
-ENV GEMINI_API_KEY=${GEMINI_API_KEY}
 RUN npm run build
 
 
@@ -63,20 +60,14 @@ RUN printf '#!/bin/bash\n\
 set -e\n\
 \n\
 PORT="${PORT:-8080}"\n\
-BACKEND_PORT=5000\n\
+# Shared by backend_server.py and cloud_run_server.py so both agree.\n\
+export OVERCLOUDED_BACKEND_PORT="${OVERCLOUDED_BACKEND_PORT:-5057}"\n\
+BACKEND_PORT="$OVERCLOUDED_BACKEND_PORT"\n\
 \n\
 echo ""\n\
 echo "  Overclouded — Starting Container"\n\
 echo "  PORT=$PORT  BACKEND=$BACKEND_PORT"\n\
 echo ""\n\
-\n\
-# Inject GEMINI_API_KEY into the pre-built JS bundle at runtime\n\
-if [ -n "$GEMINI_API_KEY" ]; then\n\
-    echo "  [ok] GEMINI_API_KEY detected — injecting into frontend bundle..."\n\
-    find /app/dist -name "*.js" -exec sed -i "s|__GEMINI_PLACEHOLDER__|${GEMINI_API_KEY}|g" {} + 2>/dev/null || true\n\
-else\n\
-    echo "  [warn] GEMINI_API_KEY not set — will use static fallback data."\n\
-fi\n\
 \n\
 # Start Python backend (Azure CLI proxy) on port 5000 in background\n\
 echo "  Starting Azure CLI backend on port ${BACKEND_PORT}..."\n\

@@ -2,7 +2,7 @@
 Over Clouded — Development Server Launcher
 ==========================================
 Starts both:
-  1. Python backend (port 5000) — wraps Azure CLI for device code auth
+  1. Python backend — generates demo data (keeps the Gemini key off the browser)
   2. Vite frontend  (port 3000) — the React SPA
 
 Usage:
@@ -17,7 +17,8 @@ import time
 
 # ── Configuration ──
 FRONTEND_PORT = 3000
-BACKEND_PORT = 5000
+# Keep in step with backend_server.py — 5000 is taken by AirPlay on macOS.
+BACKEND_PORT = int(os.environ.get("OVERCLOUDED_BACKEND_PORT", "5057"))
 URL = f"http://localhost:{FRONTEND_PORT}"
 
 # Colors
@@ -57,14 +58,12 @@ def check_prerequisites():
         print(f"    {C.R}✗ npm not found.{C.RST}")
         sys.exit(1)
 
-    # Azure CLI
-    try:
-        r = subprocess.run(["az", "--version"], capture_output=True, text=True, shell=True)
-        first_line = r.stdout.strip().split("\n")[0]
-        print(f"    {C.G}✓{C.RST} {first_line}")
-    except FileNotFoundError:
-        print(f"    {C.R}✗ Azure CLI not found. Install from https://aka.ms/installazurecli{C.RST}")
-        sys.exit(1)
+    # Entra app registration. Not fatal — Demo Data works without it, and the
+    # UI explains what is missing if Live Connection is attempted.
+    if os.environ.get("VITE_AZURE_CLIENT_ID", "").strip():
+        print(f"    {C.G}✓{C.RST} VITE_AZURE_CLIENT_ID configured")
+    else:
+        print(f"    {C.Y}!{C.RST} VITE_AZURE_CLIENT_ID not set — Live Connection disabled, Demo Data still works")
 
     # node_modules
     if not os.path.isdir("node_modules"):
