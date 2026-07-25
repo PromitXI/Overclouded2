@@ -203,7 +203,24 @@ const getStaticFallback = (subId: string): DashboardData => ({
     ]
   },
   iamExtended: {
-    roleAssignments: [],
+    // Kept consistent with privilegedRoleSummary below: 2 Owner and 5 Contributor
+    // assignments, and one row per entry in servicePrincipals.
+    roleAssignments: [
+      { id: 'ra-01', principalId: '8f1c2d3e-0001', principalName: 'Sarah Chen', principalType: 'User', roleName: 'Owner' },
+      { id: 'ra-02', principalId: '8f1c2d3e-0002', principalName: 'Michael Okafor', principalType: 'User', roleName: 'Owner' },
+      { id: 'ra-03', principalId: '8f1c2d3e-0003', principalName: 'Platform Engineering', principalType: 'Group', roleName: 'Contributor' },
+      { id: 'ra-04', principalId: '8f1c2d3e-0004', principalName: 'Priya Raman', principalType: 'User', roleName: 'Contributor' },
+      { id: 'ra-05', principalId: '8f1c2d3e-0005', principalName: 'Daniel Weiss', principalType: 'User', roleName: 'Contributor' },
+      { id: 'ra-06', principalId: '8f1c2d3e-0006', principalName: 'devops-sp', principalType: 'ServicePrincipal', roleName: 'Contributor' },
+      { id: 'ra-07', principalId: '8f1c2d3e-0007', principalName: 'Data Platform Team', principalType: 'Group', roleName: 'Contributor' },
+      { id: 'ra-08', principalId: '8f1c2d3e-0008', principalName: 'backup-sp', principalType: 'ServicePrincipal', roleName: 'Backup Contributor' },
+      { id: 'ra-09', principalId: '8f1c2d3e-0009', principalName: 'monitoring-sp', principalType: 'ServicePrincipal', roleName: 'Monitoring Reader' },
+      { id: 'ra-10', principalId: '8f1c2d3e-0010', principalName: 'Security Operations', principalType: 'Group', roleName: 'Security Reader' },
+      { id: 'ra-11', principalId: '8f1c2d3e-0011', principalName: 'Ana Sousa', principalType: 'User', roleName: 'Reader' },
+      { id: 'ra-12', principalId: '8f1c2d3e-0012', principalName: 'Tomas Rivera', principalType: 'User', roleName: 'Reader' },
+      { id: 'ra-13', principalId: '8f1c2d3e-0013', principalName: 'External Auditors', principalType: 'Group', roleName: 'Reader' },
+      { id: 'ra-14', principalId: '8f1c2d3e-0014', principalName: 'Lena Fischer', principalType: 'User', roleName: 'User Access Administrator' }
+    ],
     privilegedRoleSummary: { owners: 2, contributors: 5, globalAdmins: 1 },
     servicePrincipals: [
       { name: 'devops-sp', roleName: 'Contributor', credentialExpiry: '2026-05-15' },
