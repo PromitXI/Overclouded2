@@ -6,7 +6,7 @@ interface LoginScreenProps {
   onLogin: (subId: string, token?: string) => void;
 }
 
-type TabState = 'HOME' | 'DOCS' | 'SECURITY' | 'ENTERPRISE' | 'CONTACT';
+type TabState = 'HOME' | 'DOCS' | 'SECURITY' | 'CONTACT';
 type AuthStep = 'IDLE' | 'DEVICE_CODE' | 'POLLING' | 'AUTHENTICATED';
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
@@ -115,6 +115,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   // ── Content sections ──
 
+  const isHome = activeTab === 'HOME';
+
   const renderContent = () => {
     switch (activeTab) {
       case 'DOCS':
@@ -124,7 +126,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               <ChevronLeft className="w-4 h-4 mr-1" /> Back to Home
             </button>
             <h2 className="text-3xl font-bold mb-6">Connection Documentation</h2>
-            <div className="space-y-8 overflow-y-auto max-h-[60vh] pr-4 custom-scrollbar">
+            <div className="space-y-8 max-w-3xl">
               <section>
                 <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
                   <Terminal className="w-5 h-5 text-blue-600" />
@@ -165,7 +167,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <button onClick={() => setActiveTab('HOME')} className="flex items-center text-slate-400 hover:text-slate-900 mb-6 transition-colors"><ChevronLeft className="w-4 h-4 mr-1" /> Back to Home</button>
             <h2 className="text-3xl font-bold mb-2">Security Architecture</h2>
             <p className="text-slate-400 text-sm mb-6">Comprehensive audit report — zero data retention, full transparency.</p>
-            <div className="space-y-6 overflow-y-auto max-h-[60vh] pr-4 custom-scrollbar">
+            <div className="space-y-6">
 
               {/* ── Zero Data Storage Guarantee ── */}
               <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl">
@@ -477,140 +479,60 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         return (
           <div className="animate-in fade-in slide-in-from-left duration-500">
             <button onClick={() => setActiveTab('HOME')} className="flex items-center text-slate-400 hover:text-slate-900 mb-6 transition-colors"><ChevronLeft className="w-4 h-4 mr-1" /> Back to Home</button>
+            <h2 className="text-3xl font-bold mb-2">Talk to us</h2>
+            <p className="text-slate-500 mb-8 max-w-lg">
+              Book a walkthrough against your own subscription, or ask us anything about how the
+              analysis works. We usually reply the same working day.
+            </p>
 
-            {/* ── The Card ── */}
-            <div className="flex items-center justify-center">
-              <div
-                className="relative w-full max-w-[540px] group cursor-default"
-                style={{ perspective: '1200px' }}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mb-8">
+              <a
+                href="mailto:promit.xi@gmail.com?subject=Overclouded%20—%20request%20a%20demo"
+                className="group flex items-center gap-4 p-5 rounded-2xl border border-slate-200 hover:border-slate-900 transition-colors"
               >
-                {/* Card container with subtle 3D tilt on hover */}
-                <div
-                  className="relative rounded-sm overflow-hidden transition-all duration-700 ease-out group-hover:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.25)]"
-                  style={{
-                    background: 'linear-gradient(165deg, #FAF9F6 0%, #F5F0EB 40%, #EDE8E1 100%)',
-                    aspectRatio: '1.75 / 1',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 28px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6)',
-                  }}
-                >
-                  {/* Subtle paper texture overlay */}
-                  <div className="absolute inset-0 opacity-[0.03]" style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                  }}></div>
-
-                  {/* Embossed edge line — top */}
-                  <div className="absolute top-[18px] left-[24px] right-[24px] h-[0.5px]" style={{
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(180,160,140,0.15) 20%, rgba(180,160,140,0.15) 80%, transparent 100%)',
-                  }}></div>
-
-                  {/* Embossed edge line — bottom */}
-                  <div className="absolute bottom-[18px] left-[24px] right-[24px] h-[0.5px]" style={{
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(180,160,140,0.15) 20%, rgba(180,160,140,0.15) 80%, transparent 100%)',
-                  }}></div>
-
-                  {/* Card content */}
-                  <div className="relative h-full flex flex-col justify-between p-8 md:p-10">
-
-                    {/* Top section — Company */}
-                    <div className="text-center">
-                      <div className="mb-1">
-                        <span
-                          className="text-[10px] md:text-[11px] tracking-[0.45em] uppercase"
-                          style={{ color: '#6B6259', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                        >
-                          Over Clouded
-                        </span>
-                        <span className="align-super text-[6px] ml-0.5" style={{ color: '#9B9286' }}>TM</span>
-                      </div>
-                      <div className="w-8 h-[0.5px] mx-auto mt-1" style={{ background: 'rgba(160,145,130,0.3)' }}></div>
-                    </div>
-
-                    {/* Center — Name & Title */}
-                    <div className="text-center -mt-2">
-                      <h2
-                        className="text-xl md:text-2xl tracking-[0.15em] uppercase mb-2"
-                        style={{
-                          color: '#2C2824',
-                          fontFamily: "'Georgia', 'Times New Roman', serif",
-                          fontWeight: 400,
-                          textShadow: '0 0.5px 0 rgba(255,255,255,0.8)',
-                        }}
-                      >
-                        Promit Bhattacherjee
-                      </h2>
-                      <p
-                        className="text-[10px] md:text-[11px] tracking-[0.35em] uppercase"
-                        style={{ color: '#8C8279', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                      >
-                        Lead Architect
-                      </p>
-                    </div>
-
-                    {/* Bottom — Contact Details */}
-                    <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-8">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-3 h-3" style={{ color: '#A09182' }} />
-                        <span
-                          className="text-[10px] md:text-[11px] tracking-[0.2em]"
-                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                        >
-                          974 275 7917
-                        </span>
-                      </div>
-                      <div className="hidden md:block w-[3px] h-[3px] rounded-full" style={{ background: '#C4BAB0' }}></div>
-                      <a href="mailto:promit.xi@gmail.com" className="flex items-center gap-2 hover:opacity-70 transition-opacity">
-                        <Mail className="w-3 h-3" style={{ color: '#A09182' }} />
-                        <span
-                          className="text-[10px] md:text-[11px] tracking-[0.12em]"
-                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                        >
-                          promit.xi@gmail.com
-                        </span>
-                      </a>
-                      <div className="hidden md:block w-[3px] h-[3px] rounded-full" style={{ background: '#C4BAB0' }}></div>
-                      <a href="https://x.com/promit_xi" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:opacity-70 transition-opacity">
-                        <svg viewBox="0 0 24 24" className="w-3 h-3" style={{ color: '#A09182' }} fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
-                        <span
-                          className="text-[10px] md:text-[11px] tracking-[0.12em]"
-                          style={{ color: '#5C554E', fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                        >
-                          @promit_xi
-                        </span>
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Subtle shimmer effect on hover */}
-                  <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 pointer-events-none"
-                    style={{
-                      background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 60%)',
-                    }}
-                  ></div>
+                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center flex-shrink-0">
+                  <Mail className="w-4 h-4" />
                 </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900">Book a demo</div>
+                  <div className="text-sm text-slate-500 truncate">promit.xi@gmail.com</div>
+                </div>
+              </a>
 
-                {/* Card shadow / surface underneath */}
-                <div className="absolute -bottom-1 left-2 right-2 h-2 rounded-b-sm" style={{
-                  background: 'linear-gradient(to bottom, rgba(0,0,0,0.04), transparent)',
-                }}></div>
+              <a
+                href="tel:+9742757917"
+                className="group flex items-center gap-4 p-5 rounded-2xl border border-slate-200 hover:border-slate-900 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center flex-shrink-0">
+                  <Phone className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900">Sales &amp; support</div>
+                  <div className="text-sm text-slate-500">974 275 7917</div>
+                </div>
+              </a>
+            </div>
+
+            <div className="max-w-2xl p-6 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-slate-900 text-sm mb-1">Evaluating with your own data?</div>
+                  <p className="text-sm text-slate-500">
+                    You do not need to send us anything. Overclouded reads your subscription directly
+                    from your browser using your own Microsoft sign-in, and retains nothing after the
+                    session ends. See <button onClick={() => setActiveTab('SECURITY')} className="text-slate-900 font-medium underline underline-offset-2">Security</button> for the full audit trail.
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Subtle caption */}
-            <div className="text-center mt-10">
-              <p className="text-[11px] tracking-[0.3em] uppercase" style={{ color: '#B0A89E', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-                "Vision without work is fantasy. Work without vision is labor.
-              </p>
-              <p className="text-[11px] tracking-[0.3em] uppercase" style={{ color: '#B0A89E', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-                Combine both — and you build empires."
-              </p>
-              <p className="text-[10px] tracking-[0.2em] mt-2" style={{ color: '#CCC5BD', fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-                — Promit
-              </p>
+            <div className="mt-8 pt-6 border-t border-slate-100 max-w-2xl flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-400">
+              <span>Promit Bhattacherjee &middot; Lead Architect</span>
+              <a href="https://x.com/promit_xi" target="_blank" rel="noreferrer" className="hover:text-slate-900 transition-colors">@promit_xi</a>
             </div>
           </div>
         );
-      case 'ENTERPRISE': return null;
       case 'HOME': default:
         return (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -620,7 +542,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 Analyse Environment <ArrowRight className="w-5 h-5 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
               </button>
             </div>
-            <div className="hidden lg:block text-slate-400 text-sm">&copy; {new Date().getFullYear()} Over Clouded Inc. All rights reserved.</div>
+            <div className="hidden lg:block text-slate-400 text-sm">&copy; {new Date().getFullYear()} Overclouded Inc. All rights reserved.</div>
           </div>
         );
     }
@@ -720,24 +642,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-slate-900 selection:text-white overflow-hidden relative">
-      <header className="absolute top-0 left-0 w-full p-6 md:p-10 flex justify-between items-center z-20 mix-blend-difference text-white lg:text-slate-900 lg:mix-blend-normal">
-        <div className="text-3xl md:text-4xl font-extrabold tracking-tighter cursor-pointer" onClick={() => setActiveTab('HOME')}>Over Clouded<span className="align-top text-sm font-medium">TM</span></div>
+    <div className={`min-h-screen bg-white text-slate-900 font-sans selection:bg-slate-900 selection:text-white relative ${isHome ? 'overflow-hidden' : ''}`}>
+      <header className={`${isHome ? 'absolute' : 'sticky'} top-0 left-0 w-full p-6 md:p-10 flex justify-between items-center z-20 ${isHome ? 'mix-blend-difference text-white lg:text-slate-900 lg:mix-blend-normal' : 'bg-white/90 backdrop-blur-sm text-slate-900'}`}>
+        <div className="text-3xl md:text-4xl font-extrabold tracking-tighter cursor-pointer" onClick={() => setActiveTab('HOME')}>Overclouded<span className="align-top text-sm font-medium">TM</span></div>
         <nav className="hidden md:flex space-x-8 text-sm font-medium">
           <button onClick={() => setActiveTab('DOCS')} className={`hover:underline decoration-2 underline-offset-4 ${activeTab === 'DOCS' ? 'underline' : ''}`}>Documentation</button>
           <button onClick={() => setActiveTab('SECURITY')} className={`hover:underline decoration-2 underline-offset-4 ${activeTab === 'SECURITY' ? 'underline' : ''}`}>Security</button>
-          <button className="opacity-50 cursor-not-allowed" title="Enterprise features coming soon">Enterprise</button>
           <button onClick={() => setActiveTab('CONTACT')} className={`hover:underline decoration-2 underline-offset-4 ${activeTab === 'CONTACT' ? 'underline' : ''}`}>Contact</button>
         </nav>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 h-screen w-full">
-        <div className="relative flex flex-col justify-center lg:justify-end p-6 md:p-12 lg:p-20 order-2 lg:order-1 bg-white pt-24 lg:pt-0">{renderContent()}</div>
-        <div className="relative h-[40vh] lg:h-full order-1 lg:order-2 bg-slate-100 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2301&auto=format&fit=crop" alt="Minimalist Architecture" className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] hover:scale-105" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent lg:hidden"></div>
+      {isHome ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 h-screen w-full">
+          <div className="relative flex flex-col justify-center lg:justify-end p-6 md:p-12 lg:p-20 order-2 lg:order-1 bg-white pt-24 lg:pt-0">{renderContent()}</div>
+          <div className="relative h-[40vh] lg:h-full order-1 lg:order-2 bg-slate-100 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2301&auto=format&fit=crop" alt="Minimalist Architecture" className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] hover:scale-105" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent lg:hidden"></div>
+          </div>
         </div>
-      </div>
+      ) : (
+        // Content pages get the full viewport width and scroll with the document
+        // rather than being squeezed into a half-width column with its own scrollbar.
+        <div className="w-full px-6 md:px-12 lg:px-20 pb-20">
+          <div className="max-w-6xl mx-auto">{renderContent()}</div>
+        </div>
+      )}
 
       {/* Login Modal */}
       {showInput && (
