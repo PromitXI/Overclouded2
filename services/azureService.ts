@@ -8,6 +8,7 @@ interface AzureResource {
   type: string;
   location: string;
   tags?: Record<string, string>;
+  properties?: Record<string, any>;
 }
 
 interface AzureRecommendation {
@@ -22,18 +23,24 @@ interface AzureRecommendation {
   };
 }
 
-// Safe JSON fetch helper — returns null on failure so one bad call doesn't break everything
-async function safeFetch(url: string, headers: Record<string, string>): Promise<any | null> {
+// Preserve non-critical API failures so missing data is not presented as a real zero.
+async function fetchJson(url: string, headers: Record<string, string>, failures: string[]): Promise<any | null> {
   try {
     const resp = await fetch(url, { headers });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      failures.push(`${new URL(url).pathname} (${resp.status})`);
+      return null;
+    }
     return await resp.json();
-  } catch {
+  } catch (error) {
+    failures.push(`${new URL(url).pathname} (${error instanceof Error ? error.message : 'network error'})`);
     return null;
   }
 }
 
 export const fetchAzureData = async (subscriptionId: string, accessToken: string): Promise<DashboardData> => {
+  const failedRequests: string[] = [];
+  const safeFetch = (url: string, requestHeaders: Record<string, string>) => fetchJson(url, requestHeaders, failedRequests);
   const headers = {
     "Authorization": `Bearer ${accessToken}`,
     "Content-Type": "application/json"
@@ -47,6 +54,9 @@ export const fetchAzureData = async (subscriptionId: string, accessToken: string
       `${AZURE_MGMT_URL}/subscriptions/${subscriptionId}/resources?api-version=2021-04-01`,
       headers
     );
+    if (!resourcesJson) {
+      throw new Error('Azure resource inventory could not be read. Check subscription access and try again.');
+    }
     const resources: AzureResource[] = resourcesJson?.value || [];
 
     const vmCount = resources.filter(r => r.type.toLowerCase().includes('virtualmachine') && !r.type.toLowerCase().includes('extensions')).length;
@@ -77,17 +87,22 @@ export const fetchAzureData = async (subscriptionId: string, accessToken: string
     const taggedCount = resources.filter(r => r.tags && Object.keys(r.tags).length > 0).length;
     const taggingCompliance = resources.length > 0 ? Math.round((taggedCount / resources.length) * 100) : 0;
 
-    // Orphaned resources heuristic (unattached disks, unused public IPs, empty NICs)
-    const orphanedTypes = ['microsoft.compute/disks', 'microsoft.network/publicipaddresses', 'microsoft.network/networkinterfaces'];
-    const orphanedResources = resources
-      .filter(r => orphanedTypes.includes(r.type.toLowerCase()))
-      .slice(0, 20)
-      .map(r => ({
-        id: r.id,
-        name: r.name,
-        type: r.type.split('/').pop() || r.type,
-        estimatedMonthlyCost: r.type.toLowerCase().includes('disks') ? 20 : 5
-      }));
+    // Query full resource properties; the generic inventory cannot tell whether an
+    // asset is attached. Only report resources Azure explicitly marks as unused.
+    const [disksJson, publicIpsJson, nicsJson, nsgJson] = await Promise.all([
+      safeFetch(`${AZURE_MGMT_URL}/subscriptions/${subscriptionId}/providers/Microsoft.Compute/disks?api-version=2023-10-02`, headers),
+      safeFetch(`${AZURE_MGMT_URL}/subscriptions/${subscriptionId}/providers/Microsoft.Network/publicIPAddresses?api-version=2023-09-01`, headers),
+      safeFetch(`${AZURE_MGMT_URL}/subscriptions/${subscriptionId}/providers/Microsoft.Network/networkInterfaces?api-version=2023-09-01`, headers),
+      safeFetch(`${AZURE_MGMT_URL}/subscriptions/${subscriptionId}/providers/Microsoft.Network/networkSecurityGroups?api-version=2023-09-01`, headers)
+    ]);
+    const unattachedDisks: AzureResource[] = (disksJson?.value || []).filter((r: AzureResource) => r.properties?.diskState === 'Unattached');
+    const unusedPublicIps: AzureResource[] = (publicIpsJson?.value || []).filter((r: AzureResource) => !r.properties?.ipConfiguration);
+    const emptyNics: AzureResource[] = (nicsJson?.value || []).filter((r: AzureResource) => !r.properties?.virtualMachine && !r.properties?.privateEndpoint);
+    const orphanedResources = [
+      ...unattachedDisks.map(r => ({ id: r.id, name: r.name, type: 'Unattached Disk', estimatedMonthlyCost: 0 })),
+      ...unusedPublicIps.map(r => ({ id: r.id, name: r.name, type: 'Unused Public IP', estimatedMonthlyCost: 0 })),
+      ...emptyNics.map(r => ({ id: r.id, name: r.name, type: 'Unattached NIC', estimatedMonthlyCost: 0 }))
+    ].slice(0, 20);
 
     // Naming convention — simple heuristic: resources following lowercase-dash pattern
     const namingRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
@@ -186,12 +201,17 @@ export const fetchAzureData = async (subscriptionId: string, accessToken: string
     }
 
     // 3d. NSG rules / Public IPs / Network
-    const publicIps = resources.filter(r => r.type.toLowerCase() === 'microsoft.network/publicipaddresses');
-    const nsgs = resources.filter(r => r.type.toLowerCase() === 'microsoft.network/networksecuritygroups');
+    const publicIps = (publicIpsJson?.value || []) as AzureResource[];
+    const nsgs = (nsgJson?.value || []) as AzureResource[];
+    const openNsgRules = nsgs.flatMap(nsg => nsg.properties?.securityRules || []).filter((rule: any) => {
+      const p = rule.properties || {};
+      const sources = [p.sourceAddressPrefix, ...(p.sourceAddressPrefixes || [])];
+      return p.direction === 'Inbound' && p.access === 'Allow' && sources.some((source: string) => source === '*' || source === 'Internet' || source === '0.0.0.0/0');
+    }).length;
     securityData.networkSecurity = {
-      openNsgRules: nsgs.length * 3, // heuristic — each NSG has ~3 inbound rules exposed
+      openNsgRules,
       publicIps: publicIps.length,
-      unprotectedEndpoints: publicIps.length > 3 ? publicIps.length - 3 : 0
+      unprotectedEndpoints: unusedPublicIps.length
     };
 
     // 3e. Encryption — heuristic from resource types
@@ -356,10 +376,11 @@ export const fetchAzureData = async (subscriptionId: string, accessToken: string
       }));
     }
 
+    const healthEntries = (healthJson?.value || []) as any[];
     const resourceHealthCounts = {
-      healthy: serviceHealth.filter(s => s.status === 'Healthy').length || resources.length,
-      degraded: serviceHealth.filter(s => s.status === 'Degraded').length,
-      unavailable: serviceHealth.filter(s => s.status === 'Unavailable').length
+      healthy: healthEntries.filter(h => h.properties?.availabilityState === 'Available').length,
+      degraded: healthEntries.filter(h => h.properties?.availabilityState === 'Degraded').length,
+      unavailable: healthEntries.filter(h => !['Available', 'Degraded'].includes(h.properties?.availabilityState)).length
     };
 
     // ════════════════════════════════════════════════════════════
@@ -432,20 +453,30 @@ export const fetchAzureData = async (subscriptionId: string, accessToken: string
       }
     }
 
+    // These metrics require APIs/queries that are not implemented yet. Mark them
+    // unavailable instead of manufacturing estimates that look authoritative.
+    failedRequests.push('Cost Management metrics are not yet collected');
+    failedRequests.push('Azure Monitor CPU, memory, storage usage and IOPS are not yet collected');
+    failedRequests.push('Backup coverage and measured SLA history are not yet collected');
+
     return {
       subscriptionId,
       isRealData: true,
+      dataQuality: {
+        status: failedRequests.length > 0 ? 'partial' : 'complete',
+        warnings: failedRequests
+      },
       security: securityData,
       monitoring: {
         vmCount,
-        storageUsedTB: storageCount * 0.5,
+        storageUsedTB: 0,
         activeUsers: 0,
-        uptime: resourceHealthCounts.unavailable === 0 ? 99.9 : 95.0,
+        uptime: 0,
         cpuUsageHistory: [],
         memoryUsageHistory: [],
-        serviceHealth: serviceHealth.length > 0 ? serviceHealth : [{ service: 'Compute', status: 'Healthy' as const, summary: 'All resources operational' }],
+        serviceHealth,
         resourceHealth: resourceHealthCounts,
-        backupCoverage: { protectedResources: Math.floor(resources.length * 0.6), unprotectedResources: Math.ceil(resources.length * 0.4) },
+        backupCoverage: { protectedResources: 0, unprotectedResources: 0 },
         diskIops: []
       },
       recommendations: recommendationsData,
@@ -461,11 +492,7 @@ export const fetchAzureData = async (subscriptionId: string, accessToken: string
       executive: {
         subscriptionName: subscriptionId,
         totalResources: resources.length,
-        slaTracking: [
-          { service: 'Virtual Machines', contractualSla: 99.95, actualUptime: resourceHealthCounts.unavailable === 0 ? 99.99 : 98.5 },
-          { service: 'Storage', contractualSla: 99.9, actualUptime: 99.99 },
-          { service: 'SQL Database', contractualSla: 99.99, actualUptime: 99.98 }
-        ]
+        slaTracking: []
       },
       iamExtended: {
         roleAssignments: iam,

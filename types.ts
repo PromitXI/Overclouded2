@@ -201,6 +201,10 @@ export interface IAMExtendedData {
 export interface DashboardData {
   subscriptionId: string;
   isRealData: boolean;
+  dataQuality?: {
+    status: 'complete' | 'partial' | 'demo';
+    warnings: string[];
+  };
   security: SecurityData;
   cost: CostData;
   governance: GovernanceData;

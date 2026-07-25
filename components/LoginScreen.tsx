@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { ArrowRight, X, Loader2, Terminal, AlertCircle, ShieldCheck, Mail, Phone, Lock, ChevronLeft, ChevronDown, Check, Copy, ExternalLink, Server, Trash2, Eye, Database, Key, Shield, CheckCircle, FileText, Workflow } from 'lucide-react';
-import { startDeviceCodeLogin, waitForLoginAndGetData, AzureSubscription } from '../services/authService';
+import { startDeviceCodeLogin, waitForLoginAndGetData, endAuthSession, AzureSubscription } from '../services/authService';
 
 interface LoginScreenProps {
   onLogin: (subId: string, token?: string) => void;
@@ -30,6 +30,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [selectedSubId, setSelectedSubId] = useState('');
 
   const resetAuth = useCallback(() => {
+    void endAuthSession();
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setAuthStep('IDLE');
@@ -92,6 +93,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     if (!selectedSubId || !accessToken) return;
     setIsLoading(true);
     setTimeout(() => {
+      void endAuthSession();
       onLogin(selectedSubId, accessToken);
       setIsLoading(false);
     }, 500);
@@ -225,7 +227,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 │  ┌──────────────┐              │  HTTPS (TLS 1.2+)                   │
 │  │ Azure OAuth  │              │  Read-Only GET Requests              │
 │  │ Device Code  │              │                                      │
-│  │ Flow         │              │  NO data sent to Overclouded servers │
+│  │ Flow         │              │  Azure data stays in browser memory  │
 │  └──────┬───────┘              │                                      │
 └─────────┼──────────────────────┼──────────────────────────────────────┘
           │                      │
@@ -242,7 +244,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 └──────────────────┘   └────────────────────────────────────────────────┘
 
   DATA FLOW:  Azure API ──▶ Browser Memory ──▶ Dashboard UI ──▶ Gone on logoff
-  STORAGE:    ❌ No database  ❌ No cookies  ❌ No localStorage  ❌ No server logs
+  STORAGE:    ❌ No database  ❌ No cookies  ❌ No localStorage
 `}</pre>
                 </div>
               </div>
@@ -317,7 +319,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     { step: '5', title: 'Dashboard Rendered', desc: 'Data displayed as charts, tables, KPIs — all client-side. Data exists only in React useState().', color: 'bg-green-500' },
                     { step: '6', title: 'PDF Generated (Optional)', desc: 'jsPDF creates reports in-browser. Downloaded directly. No server upload.', color: 'bg-green-500' },
                     { step: '7', title: 'User Signs Out / Closes Tab', desc: 'window.location.reload() clears all React state. Browser GC reclaims all memory. Token invalidated.', color: 'bg-red-500' },
-                    { step: '8', title: 'Post-Session State', desc: 'ZERO data remains anywhere — no server, no client storage, no logs, no cache. As if the session never happened.', color: 'bg-red-500' },
+                    { step: '8', title: 'Post-Session State', desc: 'Dashboard data is not persisted. The isolated Azure CLI token cache is temporary and removed with the server session or instance.', color: 'bg-red-500' },
                   ].map((item, idx) => (
                     <div key={idx} className="flex gap-3">
                       <div className="flex flex-col items-center">
@@ -433,7 +435,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 <div className="space-y-2">
                   {[
                     'Open DevTools → Application → Storage: Confirm localStorage, sessionStorage, cookies, and IndexedDB are all empty.',
-                    'Open DevTools → Network tab: All XHR/fetch calls go only to management.azure.com. No calls to Overclouded servers for data.',
+                    'Open DevTools → Network tab: Azure assessment data is fetched from management.azure.com; /api calls are limited to authentication and optional demo generation.',
                     'Inspect source code (GitHub): Search for localStorage, sessionStorage, document.cookie, indexedDB — none are used.',
                     'Verify all Azure API calls are HTTP GET (read-only). No POST/PUT/DELETE/PATCH calls.',
                     'Sign out and reopen: No previous session data, dashboards, or tokens are recoverable.',
@@ -454,11 +456,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               <div className="p-6 bg-slate-900 rounded-2xl">
                 <h3 className="text-lg font-bold text-white mb-3">Audit Summary Statement</h3>
                 <p className="text-xs text-slate-300 leading-relaxed italic">
-                  "Overclouded is a stateless, read-only, client-side cloud intelligence dashboard. It authenticates users via Microsoft Entra ID 
-                  (OAuth 2.0 Device Code Flow), fetches Azure subscription telemetry directly into the browser's volatile memory via the Azure Resource 
-                  Manager REST API, and renders the data as interactive visualizations. No customer data is stored, persisted, cached, logged, or 
-                  transmitted to any Overclouded-controlled infrastructure at any point during or after the session. All data is irrecoverably 
-                  destroyed when the browser tab is closed or the user signs out. The platform source code is publicly auditable on GitHub."
+                  "Overclouded is a read-only cloud intelligence dashboard. It uses an isolated Azure CLI device-code session for authentication,
+                  fetches subscription telemetry from Azure Resource Manager into browser memory, and does not persist assessment data in a database
+                  or browser storage. Authentication token caches are isolated per server session and temporary. The platform source code is publicly auditable on GitHub."
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500">
                   <span>Report Version: 1.0</span>

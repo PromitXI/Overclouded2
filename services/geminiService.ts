@@ -1,159 +1,21 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { DashboardData } from "../types";
 
+// Demo generation happens on the server so the Gemini key is never shipped in browser JavaScript.
 export const generateFallbackData = async (subscriptionId: string): Promise<DashboardData> => {
-  if (!process.env.API_KEY || process.env.API_KEY === '__GEMINI_PLACEHOLDER__') {
-    console.warn("No API Key found. Using static fallback data.");
-    return getStaticFallback(subscriptionId);
-  }
-
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Generate a highly detailed "Overclouded" style JSON analysis for Azure subscription '${subscriptionId}'.
-      The data must represent an enterprise-grade environment with realistic numbers.
-      
-      Include ALL these sections:
-      1. **Security**: score, threats, compliance, vulnerabilities, alerts, regulatoryCompliance (CIS/ISO/PCI/NIST), networkSecurity, encryptionStatus, keyVaultHealth
-      2. **Cost (FinOps)**: cost history (actual vs forecast), breakdown by service/region/resourceGroup, RI coverage, anomalies, month-over-month change
-      3. **Governance**: Policy violations, tagging, zombie assets, resourcesByType, resourcesByRegion, orphanedResources, subscriptionQuotas, namingCompliance
-      4. **Monitoring**: VMs, storage, uptime, cpu/memory history, serviceHealth, resourceHealth, backupCoverage
-      5. **Recommendations**: advisor items with savings
-      6. **Events**: activity log entries
-      7. **IAM**: role assignments
-      8. **DevOps**: deployments, changeVelocity, failedOperationsSummary
-      9. **Executive**: subscription summary, SLA tracking
-      10. **IAM Extended**: privileged roles, service principals, guest users, stale accounts
-      
-      JSON Schema strict adherence required.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            security: {
-              type: Type.OBJECT,
-              properties: {
-                score: { type: Type.NUMBER },
-                activeThreats: { type: Type.NUMBER },
-                complianceScore: { type: Type.NUMBER },
-                criticalVulnerabilities: { type: Type.NUMBER },
-                alerts: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, severity: { type: Type.STRING }, description: { type: Type.STRING }, time: { type: Type.STRING } } } },
-                regulatoryCompliance: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { framework: { type: Type.STRING }, passedControls: { type: Type.NUMBER }, failedControls: { type: Type.NUMBER }, totalControls: { type: Type.NUMBER } } } },
-                networkSecurity: { type: Type.OBJECT, properties: { openNsgRules: { type: Type.NUMBER }, publicIps: { type: Type.NUMBER }, unprotectedEndpoints: { type: Type.NUMBER } } },
-                encryptionStatus: { type: Type.OBJECT, properties: { encryptedResources: { type: Type.NUMBER }, unencryptedResources: { type: Type.NUMBER } } },
-                keyVaultHealth: { type: Type.OBJECT, properties: { totalSecrets: { type: Type.NUMBER }, expiringSecrets: { type: Type.NUMBER }, totalCertificates: { type: Type.NUMBER }, expiringCertificates: { type: Type.NUMBER } } }
-              }
-            },
-            cost: {
-              type: Type.OBJECT,
-              properties: {
-                currentMonthCost: { type: Type.NUMBER },
-                forecastedCost: { type: Type.NUMBER },
-                budget: { type: Type.NUMBER },
-                riCoverage: { type: Type.NUMBER },
-                potentialSavings: { type: Type.NUMBER },
-                monthOverMonthChange: { type: Type.NUMBER },
-                costTrend: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { date: { type: Type.STRING }, value: { type: Type.NUMBER }, type: { type: Type.STRING } } } },
-                costByService: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.NUMBER } } } },
-                costByResourceGroup: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.NUMBER } } } },
-                costByRegion: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.NUMBER } } } },
-                costAnomalies: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { date: { type: Type.STRING }, expectedCost: { type: Type.NUMBER }, actualCost: { type: Type.NUMBER }, service: { type: Type.STRING } } } }
-              }
-            },
-            governance: {
-              type: Type.OBJECT,
-              properties: {
-                healthScore: { type: Type.NUMBER },
-                policyViolations: { type: Type.NUMBER },
-                taggingCompliance: { type: Type.NUMBER },
-                zombieAssets: { type: Type.NUMBER },
-                namingCompliancePercent: { type: Type.NUMBER },
-                policies: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, name: { type: Type.STRING }, status: { type: Type.STRING }, severity: { type: Type.STRING }, affectedResources: { type: Type.NUMBER } } } },
-                resourcesByType: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { type: { type: Type.STRING }, count: { type: Type.NUMBER } } } },
-                resourcesByRegion: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { region: { type: Type.STRING }, count: { type: Type.NUMBER } } } },
-                orphanedResources: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, name: { type: Type.STRING }, type: { type: Type.STRING }, estimatedMonthlyCost: { type: Type.NUMBER } } } },
-                subscriptionQuotas: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, currentUsage: { type: Type.NUMBER }, limit: { type: Type.NUMBER } } } }
-              }
-            },
-            monitoring: {
-              type: Type.OBJECT,
-              properties: {
-                vmCount: { type: Type.NUMBER },
-                storageUsedTB: { type: Type.NUMBER },
-                activeUsers: { type: Type.NUMBER },
-                uptime: { type: Type.NUMBER },
-                cpuUsageHistory: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { time: { type: Type.STRING }, value: { type: Type.NUMBER } } } },
-                memoryUsageHistory: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { time: { type: Type.STRING }, value: { type: Type.NUMBER } } } },
-                serviceHealth: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { service: { type: Type.STRING }, status: { type: Type.STRING }, summary: { type: Type.STRING } } } },
-                resourceHealth: { type: Type.OBJECT, properties: { healthy: { type: Type.NUMBER }, degraded: { type: Type.NUMBER }, unavailable: { type: Type.NUMBER } } },
-                backupCoverage: { type: Type.OBJECT, properties: { protectedResources: { type: Type.NUMBER }, unprotectedResources: { type: Type.NUMBER } } },
-                diskIops: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { time: { type: Type.STRING }, value: { type: Type.NUMBER } } } }
-              }
-            },
-            recommendations: {
-              type: Type.OBJECT,
-              properties: {
-                monthlySavings: { type: Type.NUMBER },
-                efficiencyScore: { type: Type.NUMBER },
-                items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, category: { type: Type.STRING }, impact: { type: Type.STRING }, description: { type: Type.STRING }, savings: { type: Type.NUMBER } } } }
-              }
-            },
-            events: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, timestamp: { type: Type.STRING }, operationName: { type: Type.STRING }, status: { type: Type.STRING }, caller: { type: Type.STRING }, resourceGroup: { type: Type.STRING }, description: { type: Type.STRING } } } },
-            iam: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, principalId: { type: Type.STRING }, principalName: { type: Type.STRING }, principalType: { type: Type.STRING }, roleName: { type: Type.STRING } } } },
-            devops: {
-              type: Type.OBJECT,
-              properties: {
-                deployments: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, name: { type: Type.STRING }, resourceGroup: { type: Type.STRING }, status: { type: Type.STRING }, timestamp: { type: Type.STRING }, duration: { type: Type.STRING } } } },
-                changeVelocity: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { date: { type: Type.STRING }, changes: { type: Type.NUMBER } } } },
-                failedOperationsSummary: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { operation: { type: Type.STRING }, count: { type: Type.NUMBER } } } }
-              }
-            },
-            executive: {
-              type: Type.OBJECT,
-              properties: {
-                subscriptionName: { type: Type.STRING },
-                totalResources: { type: Type.NUMBER },
-                slaTracking: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { service: { type: Type.STRING }, contractualSla: { type: Type.NUMBER }, actualUptime: { type: Type.NUMBER } } } }
-              }
-            },
-            iamExtended: {
-              type: Type.OBJECT,
-              properties: {
-                privilegedRoleSummary: { type: Type.OBJECT, properties: { owners: { type: Type.NUMBER }, contributors: { type: Type.NUMBER }, globalAdmins: { type: Type.NUMBER } } },
-                servicePrincipals: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, roleName: { type: Type.STRING }, credentialExpiry: { type: Type.STRING } } } },
-                guestUsers: { type: Type.NUMBER },
-                staleAccounts: { type: Type.NUMBER }
-              }
-            }
-          }
-        }
-      }
+    const response = await fetch('/api/generate-demo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriptionId })
     });
-
-    const text = response.text;
-    if (!text) throw new Error("Empty response from AI");
-    
-    const p = JSON.parse(text);
-    return {
-      subscriptionId,
-      isRealData: false,
-      security: p.security,
-      cost: p.cost,
-      governance: p.governance,
-      monitoring: p.monitoring,
-      recommendations: p.recommendations,
-      events: p.events,
-      iam: p.iam,
-      devops: p.devops || { deployments: [], changeVelocity: [], failedOperationsSummary: [] },
-      executive: p.executive || { subscriptionName: subscriptionId, totalResources: 0, slaTracking: [] },
-      iamExtended: p.iamExtended || { roleAssignments: p.iam || [], privilegedRoleSummary: { owners: 0, contributors: 0, globalAdmins: 0 }, servicePrincipals: [], guestUsers: 0, staleAccounts: 0 }
-    };
-
+    if (!response.ok) throw new Error('Demo generator unavailable');
+    const generated = await response.json();
+    if (!generated?.security || !generated?.cost || !generated?.governance || !generated?.monitoring) {
+      throw new Error('Demo generator returned incomplete data');
+    }
+    return { ...generated, subscriptionId, isRealData: false, dataQuality: { status: 'demo', warnings: [] } } as DashboardData;
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.warn('Using static demo data:', error);
     return getStaticFallback(subscriptionId);
   }
 };

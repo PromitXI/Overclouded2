@@ -19,33 +19,39 @@ import re
 import sys
 import os
 import platform
+import tempfile
+import uuid
+import shutil
+import urllib.request
+import urllib.error
 
 PORT = 5000
 IS_WINDOWS = platform.system() == "Windows"
 
 
 class AzureAuthState:
-    """Shared state for the login process."""
-    login_process = None
-    user_code = None
-    verification_url = None
-    auth_completed = False
-    auth_error = None
-    lock = threading.Lock()
+    """One isolated Azure CLI login, including its own token cache."""
+    def __init__(self):
+        self.login_process = None
+        self.user_code = None
+        self.verification_url = None
+        self.auth_completed = False
+        self.auth_error = None
+        self.config_dir = tempfile.mkdtemp(prefix="overclouded-azure-")
 
-    @classmethod
-    def reset(cls):
-        with cls.lock:
-            if cls.login_process and cls.login_process.poll() is None:
-                try:
-                    cls.login_process.terminate()
-                except Exception:
-                    pass
-            cls.login_process = None
-            cls.user_code = None
-            cls.verification_url = None
-            cls.auth_completed = False
-            cls.auth_error = None
+    def environment(self):
+        env = os.environ.copy()
+        env["AZURE_CONFIG_DIR"] = self.config_dir
+        return env
+
+    def close(self):
+        if self.login_process and self.login_process.poll() is None:
+            self.login_process.terminate()
+        shutil.rmtree(self.config_dir, ignore_errors=True)
+
+
+AUTH_SESSIONS = {}
+AUTH_LOCK = threading.Lock()
 
 
 class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
@@ -64,6 +70,10 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/api/start-login":
             self._start_login()
+        elif self.path == "/api/generate-demo":
+            self._generate_demo()
+        elif self.path == "/api/end-session":
+            self._end_session()
         else:
             self.send_error(404)
 
@@ -81,9 +91,53 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
 
     # ── Endpoint Handlers ──
 
+    def _end_session(self):
+        session_id = self.headers.get("X-Auth-Session", "")
+        with AUTH_LOCK:
+            state = AUTH_SESSIONS.pop(session_id, None)
+        if state:
+            state.close()
+        self._send_json({"ended": True})
+
+    def _generate_demo(self):
+        """Generate demo data without exposing the Gemini API key to the browser."""
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            self._send_json({"error": "Gemini is not configured"}, 503)
+            return
+        try:
+            length = min(int(self.headers.get("Content-Length", "0")), 4096)
+            body = json.loads(self.rfile.read(length) or b"{}")
+            subscription_id = str(body.get("subscriptionId", "demo-subscription"))[:200]
+            model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            prompt = f"""Return JSON only for a realistic fictional Azure assessment dashboard for subscription {subscription_id!r}.
+Required top-level objects: security, cost, governance, monitoring, recommendations, events, iam, devops, executive, iamExtended.
+security needs score, activeThreats, complianceScore, criticalVulnerabilities, alerts, regulatoryCompliance, networkSecurity, encryptionStatus, keyVaultHealth.
+cost needs currentMonthCost, forecastedCost, budget, costTrend, costByService, riCoverage, potentialSavings, costByResourceGroup, costByRegion, monthOverMonthChange, costAnomalies.
+governance needs healthScore, policyViolations, taggingCompliance, zombieAssets, policies, resourcesByType, resourcesByRegion, orphanedResources, subscriptionQuotas, namingCompliancePercent.
+monitoring needs vmCount, storageUsedTB, activeUsers, uptime, cpuUsageHistory, memoryUsageHistory, serviceHealth, resourceHealth, backupCoverage, diskIops.
+Use realistic but explicitly simulated values and arrays. Do not include markdown."""
+            payload = json.dumps({
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"responseMimeType": "application/json", "temperature": 0.7}
+            }).encode("utf-8")
+            request = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(request, timeout=60) as response:
+                gemini = json.loads(response.read())
+            text = gemini["candidates"][0]["content"]["parts"][0]["text"]
+            self._send_json(json.loads(text))
+        except urllib.error.HTTPError as error:
+            self._send_json({"error": "Demo generation failed", "status": error.code}, 502)
+        except Exception as error:
+            self._send_json({"error": f"Demo generation failed: {error}"}, 502)
+
     def _start_login(self):
         """Start `az login --use-device-code` and capture the device code."""
-        AzureAuthState.reset()
+        session_id = uuid.uuid4().hex
+        state = AzureAuthState()
+        with AUTH_LOCK:
+            AUTH_SESSIONS[session_id] = state
 
         try:
             # Start az login in a subprocess
@@ -94,8 +148,9 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
                 text=True,
                 shell=IS_WINDOWS,
                 bufsize=1,
+                env=state.environment(),
             )
-            AzureAuthState.login_process = process
+            state.login_process = process
 
             # The device code message comes from stderr
             # Read lines until we get the one with the code
@@ -109,7 +164,7 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
                     break
 
             if not device_code_line:
-                AzureAuthState.auth_error = "Could not get device code from Azure CLI."
+                state.auth_error = "Could not get device code from Azure CLI."
                 self._send_json({"error": "Could not get device code. Is Azure CLI installed?"}, 500)
                 return
 
@@ -125,27 +180,28 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
                 code_match2 = re.search(r"([A-Z0-9]{8,})", device_code_line)
                 user_code = code_match2.group(1) if code_match2 else None
 
-            AzureAuthState.user_code = user_code
-            AzureAuthState.verification_url = verification_url
+            state.user_code = user_code
+            state.verification_url = verification_url
 
             # Start background thread to wait for auth completion
             def wait_for_login():
                 try:
                     stdout, stderr = process.communicate(timeout=900)  # 15 min timeout
                     if process.returncode == 0:
-                        AzureAuthState.auth_completed = True
+                        state.auth_completed = True
                     else:
-                        AzureAuthState.auth_error = stderr.strip() if stderr else "Login failed."
-                        AzureAuthState.auth_completed = True
+                        state.auth_error = stderr.strip() if stderr else "Login failed."
+                        state.auth_completed = True
                 except subprocess.TimeoutExpired:
                     process.kill()
-                    AzureAuthState.auth_error = "Login timed out after 15 minutes."
-                    AzureAuthState.auth_completed = True
+                    state.auth_error = "Login timed out after 15 minutes."
+                    state.auth_completed = True
 
             t = threading.Thread(target=wait_for_login, daemon=True)
             t.start()
 
             self._send_json({
+                "session_id": session_id,
                 "user_code": user_code,
                 "verification_uri": verification_url,
                 "message": device_code_line,
@@ -158,19 +214,25 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
 
     def _poll_login(self):
         """Check if the user has completed sign-in."""
+        state = self._get_auth_state()
+        if not state:
+            return
         self._send_json({
-            "completed": AzureAuthState.auth_completed,
-            "error": AzureAuthState.auth_error,
+            "completed": state.auth_completed,
+            "error": state.auth_error,
         })
 
     def _get_token(self):
         """Run `az account get-access-token` and return the access token."""
+        state = self._get_auth_state()
+        if not state:
+            return
         try:
             result = subprocess.run(
                 ["az", "account", "get-access-token",
                  "--resource", "https://management.azure.com",
                  "-o", "json"],
-                capture_output=True, text=True, shell=IS_WINDOWS, timeout=30,
+                capture_output=True, text=True, shell=IS_WINDOWS, timeout=30, env=state.environment(),
             )
 
             if result.returncode == 0:
@@ -190,12 +252,15 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
 
     def _get_subscriptions(self):
         """Run `az account list` and return the list of subscriptions."""
+        state = self._get_auth_state()
+        if not state:
+            return
         try:
             result = subprocess.run(
                 ["az", "account", "list",
                  "--query", "[?state=='Enabled'].{subscriptionId:id, displayName:name, state:state}",
                  "-o", "json"],
-                capture_output=True, text=True, shell=IS_WINDOWS, timeout=30,
+                capture_output=True, text=True, shell=IS_WINDOWS, timeout=30, env=state.environment(),
             )
 
             if result.returncode == 0:
@@ -211,6 +276,15 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
 
     # ── Helpers ──
 
+    def _get_auth_state(self):
+        session_id = self.headers.get("X-Auth-Session", "")
+        with AUTH_LOCK:
+            state = AUTH_SESSIONS.get(session_id)
+        if not state:
+            self._send_json({"error": "Authentication session is missing or expired."}, 401)
+            return None
+        return state
+
     def _send_json(self, data, code=200):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -221,7 +295,7 @@ class AzureAuthHandler(http.server.BaseHTTPRequestHandler):
     def _set_cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Auth-Session")
 
 
 def start_server():

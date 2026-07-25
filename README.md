@@ -15,6 +15,11 @@ View your app in AI Studio: https://ai.studio/apps/drive/1vgaZne7rnszGhZtSVRnyt2
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+2. Optionally set `GEMINI_API_KEY` in the server environment. It is used only by
+   the Python backend for AI-generated demo data and is never bundled into the browser.
+3. Install Azure CLI if you want to use the live connection.
+4. Run both the frontend and authentication backend:
+   `python3 start_server.py`
+
+Running only `npm run dev` starts the frontend; live authentication and AI demo
+generation require `backend_server.py` on port 5000.

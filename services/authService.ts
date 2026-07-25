@@ -6,10 +6,22 @@
 // ============================================================
 
 export interface DeviceCodeResponse {
+  session_id: string;
   user_code: string;
   verification_uri: string;
   message: string;
 }
+
+let authSessionId = '';
+
+const sessionHeaders = (): HeadersInit => authSessionId ? { 'X-Auth-Session': authSessionId } : {};
+
+export const endAuthSession = async (): Promise<void> => {
+  if (!authSessionId) return;
+  const sessionId = authSessionId;
+  authSessionId = '';
+  await fetch('/api/end-session', { method: 'POST', headers: { 'X-Auth-Session': sessionId } }).catch(() => undefined);
+};
 
 export interface TokenResponse {
   access_token: string;
@@ -35,7 +47,9 @@ export const startDeviceCodeLogin = async (): Promise<DeviceCodeResponse> => {
     throw new Error(data.error || "Failed to start device code login.");
   }
 
-  return response.json();
+  const result: DeviceCodeResponse = await response.json();
+  authSessionId = result.session_id;
+  return result;
 };
 
 /**
@@ -43,7 +57,7 @@ export const startDeviceCodeLogin = async (): Promise<DeviceCodeResponse> => {
  * Returns true when authentication is complete.
  */
 export const pollLoginStatus = async (): Promise<{ completed: boolean; error: string | null }> => {
-  const response = await fetch("/api/poll-login");
+  const response = await fetch("/api/poll-login", { headers: sessionHeaders() });
   if (!response.ok) {
     throw new Error("Failed to check login status.");
   }
@@ -54,7 +68,7 @@ export const pollLoginStatus = async (): Promise<{ completed: boolean; error: st
  * Step 3: Get the access token after successful login.
  */
 export const getAccessToken = async (): Promise<TokenResponse> => {
-  const response = await fetch("/api/get-token");
+  const response = await fetch("/api/get-token", { headers: sessionHeaders() });
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -68,7 +82,7 @@ export const getAccessToken = async (): Promise<TokenResponse> => {
  * Fetch the list of Azure subscriptions via `az account list`.
  */
 export const fetchSubscriptions = async (): Promise<AzureSubscription[]> => {
-  const response = await fetch("/api/subscriptions");
+  const response = await fetch("/api/subscriptions", { headers: sessionHeaders() });
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));

@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleLogin = async (subId: string, token?: string) => {
+    const scanStartedAt = Date.now();
     setAppState(AppState.SCANNING);
     setErrorMsg(null);
     
@@ -34,14 +35,13 @@ const App: React.FC = () => {
         }
 
         // Ensure the scanning animation plays for at least a few seconds to feel "real"
-        const minTime = 8000;
-        const startTime = Date.now();
+        const minTime = 3000;
         
         // Wait for animation if data came back too fast
         setTimeout(() => {
             setDashboardData(data);
             setAppState(AppState.DASHBOARD);
-        }, Math.max(1000, minTime - (Date.now() - startTime))); // min 1s delay if fetching took long
+        }, Math.max(0, minTime - (Date.now() - scanStartedAt)));
 
     } catch (e) {
         console.error("Application Error", e);

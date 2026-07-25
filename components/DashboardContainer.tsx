@@ -547,6 +547,15 @@ const DashboardContainer: React.FC<DashboardContainerProps> = ({ data }) => {
 
           {/* Scrollable Content Area */}
           <div id="dashboard-content" className="flex-1 overflow-y-auto px-8 pb-8 pt-6 custom-scrollbar bg-slate-50">
+             {data.dataQuality?.status === 'partial' && (
+               <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                 <strong>Partial Azure data.</strong> {data.dataQuality.warnings.length} data check{data.dataQuality.warnings.length === 1 ? '' : 's'} could not be completed. This may mean a provider is disabled, your role lacks permission, or collection is not implemented. Missing values are not health confirmations.
+                 <details className="mt-2 text-xs text-amber-700">
+                   <summary className="cursor-pointer font-semibold">Show unavailable checks</summary>
+                   <ul className="mt-2 list-disc pl-5">{data.dataQuality.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}</ul>
+                 </details>
+               </div>
+             )}
              {activeTab === 'overview' && <OverviewDashboard data={data} />}
              {activeTab === 'cost' && <CostDashboard data={data.cost} />}
              {activeTab === 'governance' && <GovernanceDashboard data={data.governance} />}

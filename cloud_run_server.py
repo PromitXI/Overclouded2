@@ -66,6 +66,9 @@ class CloudRunHandler(http.server.BaseHTTPRequestHandler):
 
             req = urllib.request.Request(target_url, data=body, method=method)
             req.add_header("Content-Type", self.headers.get("Content-Type", "application/json"))
+            auth_session = self.headers.get("X-Auth-Session")
+            if auth_session:
+                req.add_header("X-Auth-Session", auth_session)
 
             with urllib.request.urlopen(req, timeout=120) as resp:
                 response_data = resp.read()
