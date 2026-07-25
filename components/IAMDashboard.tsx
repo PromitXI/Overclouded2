@@ -92,7 +92,7 @@ const IAMDashboard: React.FC<{ data: IAMExtendedData }> = ({ data }) => {
             <h4 className="text-sm font-bold text-slate-700 mb-2 text-center">By Principal Type</h4>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={principalTypeData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value">
+                <Pie data={principalTypeData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value" isAnimationActive={false}>
                   {principalTypeData.map((_, idx) => (<Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />

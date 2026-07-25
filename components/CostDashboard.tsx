@@ -60,7 +60,7 @@ const CostDashboard: React.FC<{ data: CostData }> = ({ data }) => {
                         <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
                         <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} tickFormatter={(v) => `$${v}`} />
                         <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                             {data.costTrend.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.type === 'Forecast' ? '#93C5FD' : '#3B82F6'} />
                             ))}
@@ -76,7 +76,7 @@ const CostDashboard: React.FC<{ data: CostData }> = ({ data }) => {
                 <div className="h-[280px] relative">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                            <Pie data={data.costByService} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value">
+                            <Pie data={data.costByService} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" isAnimationActive={false}>
                                 {data.costByService.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
                             </Pie>
                             <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} formatter={(value: number) => fmtCurrency(value)} />
@@ -106,7 +106,7 @@ const CostDashboard: React.FC<{ data: CostData }> = ({ data }) => {
                         <XAxis type="number" axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} tick={{fill: '#94a3b8', fontSize: 11}} />
                         <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={150} tick={{fill: '#334155', fontSize: 11}} />
                         <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} formatter={(value: number) => fmtCurrency(value)} />
-                        <Bar dataKey="value" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} />
+                        <Bar dataKey="value" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} isAnimationActive={false} />
                     </BarChart>
                 </ResponsiveContainer>
             </div>

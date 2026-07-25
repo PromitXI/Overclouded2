@@ -51,7 +51,7 @@ const SecurityDashboard: React.FC<{ data: SecurityData }> = ({ data }) => {
                <div className="h-48 w-full relative">
                   <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                          <Pie data={pieData} innerRadius={50} outerRadius={70} dataKey="value" startAngle={90} endAngle={-270} stroke="none">
+                          <Pie data={pieData} innerRadius={50} outerRadius={70} dataKey="value" startAngle={90} endAngle={-270} stroke="none" isAnimationActive={false}>
                               {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
                           </Pie>
                       </PieChart>

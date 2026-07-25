@@ -52,7 +52,7 @@ const MonitoringDashboard: React.FC<{ data: MonitoringData }> = ({ data }) => {
               <XAxis dataKey="time" tick={{ fontSize: 11 }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
               <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />
-              <Area type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} fill="url(#cpuGrad)" name="CPU %" />
+              <Area type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} fill="url(#cpuGrad)" name="CPU %" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -72,7 +72,7 @@ const MonitoringDashboard: React.FC<{ data: MonitoringData }> = ({ data }) => {
               <XAxis dataKey="time" tick={{ fontSize: 11 }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
               <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />
-              <Area type="monotone" dataKey="value" stroke="#8B5CF6" strokeWidth={2} fill="url(#memGrad)" name="Memory %" />
+              <Area type="monotone" dataKey="value" stroke="#8B5CF6" strokeWidth={2} fill="url(#memGrad)" name="Memory %" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -96,7 +96,7 @@ const MonitoringDashboard: React.FC<{ data: MonitoringData }> = ({ data }) => {
                 <XAxis dataKey="time" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />
-                <Area type="monotone" dataKey="value" stroke="#F59E0B" strokeWidth={2} fill="url(#iopsGrad)" name="IOPS" />
+                <Area type="monotone" dataKey="value" stroke="#F59E0B" strokeWidth={2} fill="url(#iopsGrad)" name="IOPS" isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

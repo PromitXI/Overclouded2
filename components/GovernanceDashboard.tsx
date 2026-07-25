@@ -77,7 +77,7 @@ const GovernanceDashboard: React.FC<{ data: GovernanceData }> = ({ data }) => {
                <div className="h-[280px]">
                    <ResponsiveContainer width="100%" height="100%">
                        <PieChart>
-                           <Pie data={(data.resourcesByType || []).slice(0, 8)} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="count" nameKey="type">
+                           <Pie data={(data.resourcesByType || []).slice(0, 8)} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="count" nameKey="type" isAnimationActive={false}>
                                {(data.resourcesByType || []).slice(0, 8).map((_, idx) => (<Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />))}
                            </Pie>
                            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />

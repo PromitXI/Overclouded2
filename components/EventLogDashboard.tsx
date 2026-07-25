@@ -140,7 +140,7 @@ const EventLogDashboard: React.FC<{ data: ActivityLogEntry[]; devops?: DevOpsDat
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />
-                <Bar dataKey="changes" radius={[6, 6, 0, 0]} name="Changes">
+                <Bar dataKey="changes" radius={[6, 6, 0, 0]} name="Changes" isAnimationActive={false}>
                   {devops.changeVelocity.map((_, idx) => (
                     <Cell key={`cell-${idx}`} fill={idx % 2 === 0 ? '#3B82F6' : '#60A5FA'} />
                   ))}
