@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { ArrowRight, X, Loader2, Terminal, AlertCircle, ShieldCheck, Mail, Phone, Lock, ChevronLeft, ChevronDown, Check, Copy, ExternalLink, Server, Trash2, Eye, Database, Key, Shield, CheckCircle, FileText, Workflow } from 'lucide-react';
+import { ArrowRight, X, Loader2, Terminal, AlertCircle, ShieldCheck, Mail, Phone, Lock, ChevronLeft, ChevronDown, Check, Copy, ExternalLink, Server, Trash2, Eye, Database, Key, Shield, CheckCircle, FileText, Workflow, DollarSign, Lightbulb, Users, Activity } from 'lucide-react';
 import { startDeviceCodeLogin, waitForLoginAndGetData, endAuthSession, AzureSubscription } from '../services/authService';
 
 interface LoginScreenProps {
@@ -536,17 +536,148 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       case 'HOME': default:
         return (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="max-w-xl mb-12 lg:mb-20">
-              <h1 className="text-4xl md:text-6xl font-medium leading-tight tracking-tight mb-8">Cloud Intelligence <br />that connects Ops <br />with Peace of Mind.</h1>
+            <div className="max-w-xl">
+              <h1 className="text-4xl md:text-5xl xl:text-6xl font-medium leading-tight tracking-tight mb-6">Cloud Intelligence <br />that connects Ops <br />with Peace of Mind.</h1>
+              <p className="text-lg text-slate-500 mb-8 max-w-md">
+                Point Overclouded at an Azure subscription and get a full read on cost, security,
+                governance and identity — plus a board-ready report — in about a minute.
+              </p>
               <button onClick={() => setShowInput(true)} className="group flex items-center gap-3 bg-slate-900 text-white px-8 py-4 rounded-full text-lg font-medium hover:bg-slate-800 transition-all hover:pr-10">
                 Analyse Environment <ArrowRight className="w-5 h-5 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
               </button>
+              <div className="flex items-center gap-2 mt-5 text-sm text-slate-400">
+                <ShieldCheck className="w-4 h-4 text-green-600 flex-shrink-0" />
+                <span>Read-only. You sign in on Microsoft&apos;s own page — no credentials, no agents, nothing stored.</span>
+              </div>
             </div>
-            <div className="hidden lg:block text-slate-400 text-sm">&copy; {new Date().getFullYear()} Overclouded Inc. All rights reserved.</div>
           </div>
         );
     }
   };
+
+  // ── Landing page content below the hero ──
+
+  const CAPABILITIES = [
+    { icon: DollarSign, title: 'Cost Analysis', body: 'Month-to-date spend, month-end forecast against budget, and a breakdown by service, resource group and region.' },
+    { icon: Lightbulb, title: 'Savings Advisor', body: 'Rightsizing and reservation opportunities with the monthly dollar figure attached to each one.' },
+    { icon: Shield, title: 'Security Posture', body: 'Defender secure score, active threats, open NSG rules, encryption gaps and expiring Key Vault material.' },
+    { icon: FileText, title: 'Compliance Coverage', body: 'Control-level pass rates for CIS, ISO 27001, PCI DSS and NIST SP 800-53.' },
+    { icon: Users, title: 'Identity & Access', body: 'Every role assignment, who holds Owner, service principal credential expiry and accounts gone stale.' },
+    { icon: Activity, title: 'Operations & SLA', body: 'CPU, memory and IOPS trends, resource health, backup coverage and SLA attainment against contract.' },
+  ];
+
+  const renderMarketing = () => (
+    <div className="bg-white">
+      {/* What it does */}
+      <section className="px-6 md:px-12 lg:px-20 py-20 md:py-28 border-t border-slate-100">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-3xl mb-16">
+            <div className="text-xs font-bold tracking-[0.2em] uppercase text-slate-400 mb-4">What you get</div>
+            <h2 className="text-3xl md:text-4xl font-medium tracking-tight mb-5">
+              The answers your cloud bill and your auditor both want.
+            </h2>
+            <p className="text-lg text-slate-500">
+              Azure already holds this data — spread across Cost Management, Defender for Cloud,
+              Advisor, Policy and Entra ID. Overclouded reads all of it in one pass and returns a
+              single prioritised picture, ranked by severity and dollar impact.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-12">
+            {CAPABILITIES.map(({ icon: Icon, title, body }) => (
+              <div key={title}>
+                <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center mb-4">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">{body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Report */}
+      <section className="px-6 md:px-12 lg:px-20 py-20 md:py-28 bg-slate-50 border-y border-slate-100">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+          <div>
+            <div className="text-xs font-bold tracking-[0.2em] uppercase text-slate-400 mb-4">The deliverable</div>
+            <h2 className="text-3xl md:text-4xl font-medium tracking-tight mb-5">
+              A report you can hand to the client.
+            </h2>
+            <p className="text-lg text-slate-500 mb-8">
+              One click exports a nine-page PDF: executive summary with posture scores and a spend
+              forecast against budget pace, then cost, savings, security, governance, operations,
+              identity, change history and the methodology behind every number.
+            </p>
+            <button onClick={() => setShowInput(true)} className="group flex items-center gap-3 bg-slate-900 text-white px-7 py-3.5 rounded-full font-medium hover:bg-slate-800 transition-all">
+              See it on your own data <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              ['9', 'pages, every one populated'],
+              ['30+', 'charts, tables and gauges'],
+              ['11', 'Azure APIs read per scan'],
+              ['0', 'bytes retained afterwards'],
+            ].map(([stat, label]) => (
+              <div key={label} className="bg-white rounded-2xl border border-slate-200 p-6">
+                <div className="text-3xl font-semibold text-slate-900 mb-1">{stat}</div>
+                <div className="text-sm text-slate-500 leading-snug">{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Trust */}
+      <section className="px-6 md:px-12 lg:px-20 py-20 md:py-28">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-3xl mb-14">
+            <div className="text-xs font-bold tracking-[0.2em] uppercase text-slate-400 mb-4">Why security teams allow it</div>
+            <h2 className="text-3xl md:text-4xl font-medium tracking-tight">
+              Nothing to install. Nothing to hand over.
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { icon: Lock, title: 'Your sign-in, not ours', body: 'Authentication runs through Microsoft Entra ID device code flow. Credentials are entered on Microsoft’s page and never reach this application.' },
+              { icon: Eye, title: 'Read-only by construction', body: 'Every Azure call is a GET against management.azure.com under your own permissions. Overclouded cannot create, modify or delete a resource.' },
+              { icon: Trash2, title: 'Zero retention', body: 'Results live in browser memory for the session and are destroyed when the tab closes. No database, no cookies, no local storage.' },
+            ].map(({ icon: Icon, title, body }) => (
+              <div key={title} className="p-7 rounded-2xl border border-slate-200">
+                <Icon className="w-5 h-5 text-slate-900 mb-4" />
+                <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">{body}</p>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setActiveTab('SECURITY')} className="mt-8 text-sm font-medium text-slate-900 underline underline-offset-4 hover:text-slate-600 transition-colors">
+            Read the full security architecture
+          </button>
+        </div>
+      </section>
+
+      {/* Closing CTA */}
+      <section className="px-6 md:px-12 lg:px-20 py-20 md:py-28 bg-slate-900 text-white">
+        <div className="max-w-6xl mx-auto text-center">
+          <h2 className="text-3xl md:text-5xl font-medium tracking-tight mb-6">
+            Scan a subscription in about a minute.
+          </h2>
+          <p className="text-lg text-slate-400 mb-10 max-w-xl mx-auto">
+            Run it live against your own Azure environment, or explore the full dashboard with
+            demonstration data first.
+          </p>
+          <button onClick={() => setShowInput(true)} className="group inline-flex items-center gap-3 bg-white text-slate-900 px-8 py-4 rounded-full text-lg font-medium hover:bg-slate-100 transition-all">
+            Analyse Environment <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+          <div className="mt-14 pt-8 border-t border-white/10 text-sm text-slate-500">
+            &copy; {new Date().getFullYear()} Overclouded Inc. All rights reserved.
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 
   // ── Device Code Flow UI ──
 
@@ -653,13 +784,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       </header>
 
       {isHome ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 h-screen w-full">
-          <div className="relative flex flex-col justify-center lg:justify-end p-6 md:p-12 lg:p-20 order-2 lg:order-1 bg-white pt-24 lg:pt-0">{renderContent()}</div>
-          <div className="relative h-[40vh] lg:h-full order-1 lg:order-2 bg-slate-100 overflow-hidden">
-            <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2301&auto=format&fit=crop" alt="Minimalist Architecture" className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] hover:scale-105" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent lg:hidden"></div>
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 min-h-screen w-full">
+            <div className="relative flex flex-col justify-center p-6 md:p-12 lg:px-20 lg:py-28 order-2 lg:order-1 bg-white pt-24">{renderContent()}</div>
+            <div className="relative h-[40vh] lg:h-full order-1 lg:order-2 bg-slate-100 overflow-hidden">
+              <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2301&auto=format&fit=crop" alt="Minimalist Architecture" className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2s] hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent lg:hidden"></div>
+            </div>
           </div>
-        </div>
+          {renderMarketing()}
+        </>
       ) : (
         // Content pages get the full viewport width and scroll with the document
         // rather than being squeezed into a half-width column with its own scrollbar.
